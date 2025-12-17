@@ -161,11 +161,3 @@ This design ensures:
 Honest capability reporting aligned with Lyftr evaluation stages.
 
 ---
-
-If you'd like, I can also:
-
-- Run `playwright` smoke tests against primary test URLs
-- Add inline code pointers (file + function) for each strategy step
-- Commit these notes and open a PR draft
-
-Tell me which follow-up you'd like (or say `done`).
