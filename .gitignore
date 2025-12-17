@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.env
+
+# Playwright
+ms-playwright/
+
+# OS
+.DS_Store
+Thumbs.db

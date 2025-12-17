@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Universal Web Scraper - Lyftr AI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .scraper-card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            display: none;
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #c33;
+            margin-bottom: 20px;
+        }
+
+        .error.active {
+            display: block;
+        }
+
+        .results {
+            display: none;
+        }
+
+        .results.active {
+            display: block;
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .results-header h2 {
+            color: #333;
+        }
+
+        .download-btn {
+            background: #10b981;
+            padding: 10px 20px;
+            font-size: 0.9rem;
+        }
+
+        .download-btn:hover {
+            box-shadow: 0 5px 15px rgba(16, 185, 129, 0.4);
+        }
+
+        .meta-info {
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .meta-info strong {
+            color: #667eea;
+        }
+
+        .sections {
+            margin-top: 20px;
+        }
+
+        .section-item {
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            overflow: hidden;
+            transition: border-color 0.3s;
+        }
+
+        .section-item:hover {
+            border-color: #667eea;
+        }
+
+        .section-header {
+            background: #f9fafb;
+            padding: 15px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+        }
+
+        .section-header:hover {
+            background: #f3f4f6;
+        }
+
+        .section-title {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .section-type {
+            background: #667eea;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            margin-left: 10px;
+        }
+
+        .section-content {
+            display: none;
+            padding: 20px;
+            background: white;
+        }
+
+        .section-content.active {
+            display: block;
+        }
+
+        .json-viewer {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .content-preview {
+            margin-bottom: 15px;
+        }
+
+        .content-preview h4 {
+            color: #667eea;
+            margin-bottom: 8px;
+        }
+
+        .content-preview p {
+            color: #666;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌐 Universal Web Scraper</h1>
+            <p>Extract structured data from any website - Static & JS-rendered</p>
+        </div>
+
+        <div class="scraper-card">
+            <div class="input-group">
+                <input 
+                    type="text" 
+                    id="urlInput" 
+                    placeholder="Enter URL (e.g., https://news.ycombinator.com/)"
+                />
+                <button id="scrapeBtn" onclick="scrapeUrl()">Scrape</button>
+            </div>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Scraping in progress... This may take 10-30 seconds</p>
+            </div>
+
+            <div class="error" id="error"></div>
+
+            <div class="results" id="results">
+                <div class="results-header">
+                    <h2>Scraping Results</h2>
+                    <button class="download-btn" onclick="downloadJson()">⬇️ Download JSON</button>
+                </div>
+
+                <div class="meta-info" id="metaInfo"></div>
+
+                <h3 style="margin-bottom: 15px; color: #333;">Sections</h3>
+                <div class="sections" id="sections"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentResult = null;
+
+        async function scrapeUrl() {
+            const urlInput = document.getElementById('urlInput');
+            const url = urlInput.value.trim();
+
+            if (!url) {
+                showError('Please enter a URL');
+                return;
+            }
+
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                showError('URL must start with http:// or https://');
+                return;
+            }
+
+            // Reset UI
+            document.getElementById('error').classList.remove('active');
+            document.getElementById('results').classList.remove('active');
+            document.getElementById('loading').classList.add('active');
+            document.getElementById('scrapeBtn').disabled = true;
+
+            try {
+                const response = await fetch('/scrape', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url: url })
+                });
+
+                const data = await response.json();
+                currentResult = data;
+
+                if (data.result) {
+                    displayResults(data.result);
+                } else {
+                    showError('No result returned from server');
+                }
+
+            } catch (error) {
+                showError('Failed to scrape: ' + error.message);
+            } finally {
+                document.getElementById('loading').classList.remove('active');
+                document.getElementById('scrapeBtn').disabled = false;
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.classList.add('active');
+        }
+
+        function displayResults(result) {
+            // Display meta info
+            const metaHtml = `
+                <strong>URL:</strong> ${result.url}<br>
+                <strong>Scraped At:</strong> ${result.scrapedAt}<br>
+                <strong>Title:</strong> ${result.meta.title || 'N/A'}<br>
+                <strong>Language:</strong> ${result.meta.language || 'N/A'}<br>
+                <strong>Sections Found:</strong> ${result.sections.length}<br>
+                <strong>Interactions:</strong> Clicks: ${result.interactions.clicks.length}, Scrolls: ${result.interactions.scrolls}, Pages: ${result.interactions.pages.length}
+            `;
+            document.getElementById('metaInfo').innerHTML = metaHtml;
+
+            // Display sections
+            const sectionsContainer = document.getElementById('sections');
+            sectionsContainer.innerHTML = '';
+
+            result.sections.forEach((section, index) => {
+                const sectionDiv = document.createElement('div');
+                sectionDiv.className = 'section-item';
+                sectionDiv.innerHTML = `
+                    <div class="section-header" onclick="toggleSection(${index})">
+                        <div>
+                            <span class="section-title">${section.label}</span>
+                            <span class="section-type">${section.type}</span>
+                        </div>
+                        <span id="toggle-${index}">▼</span>
+                    </div>
+                    <div class="section-content" id="section-${index}">
+                        <div class="content-preview">
+                            <h4>Text Preview</h4>
+                            <p>${section.content.text.substring(0, 300)}${section.content.text.length > 300 ? '...' : ''}</p>
+                        </div>
+                        ${section.content.links.length > 0 ? `
+                            <div class="content-preview">
+                                <h4>Links (${section.content.links.length})</h4>
+                                <p>${section.content.links.slice(0, 3).map(l => l.text).join(', ')}...</p>
+                            </div>
+                        ` : ''}
+                        <h4 style="color: #667eea; margin-bottom: 8px;">Full JSON</h4>
+                        <div class="json-viewer">${JSON.stringify(section, null, 2)}</div>
+                    </div>
+                `;
+                sectionsContainer.appendChild(sectionDiv);
+            });
+
+            document.getElementById('results').classList.add('active');
+        }
+
+        function toggleSection(index) {
+            const content = document.getElementById(`section-${index}`);
+            const toggle = document.getElementById(`toggle-${index}`);
+            
+            if (content.classList.contains('active')) {
+                content.classList.remove('active');
+                toggle.textContent = '▼';
+            } else {
+                content.classList.add('active');
+                toggle.textContent = '▲';
+            }
+        }
+
+        function downloadJson() {
+            if (!currentResult) return;
+
+            const dataStr = JSON.stringify(currentResult, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `scrape-${Date.now()}.json`;
+            link.click();
+            
+            URL.revokeObjectURL(url);
+        }
+
+        // Allow Enter key to trigger scraping
+        document.getElementById('urlInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                scrapeUrl();
+            }
+        });
+    </script>
+</body>
+</html>

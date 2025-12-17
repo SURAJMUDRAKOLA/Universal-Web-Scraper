@@ -1,0 +1,17 @@
+{
+  "static_scraping": true,
+  "js_rendering": true,
+  "click_tabs": true,
+  "load_more_clicks": true,
+  "infinite_scroll": true,
+  "pagination_links": true,
+  "noise_filtering": true,
+  "html_truncation": true,
+  "section_typing": true,
+  "absolute_urls": true,
+  "meta_extraction": true,
+  "links_extraction": true,
+  "images_extraction": true,
+  "lists_extraction": true,
+  "tables_extraction": true
+}
