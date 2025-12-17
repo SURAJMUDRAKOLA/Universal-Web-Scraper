@@ -246,21 +246,7 @@ MIT License — Created exclusively for Lyftr AI – Full-Stack Assignment
 ## Author
 
 Name: Suraj Mudrakola
+
 Email: surajmudrakola808@gmail.com
 
 ---
-
-## Submission Checklist / Next Steps
-
-1. Final polish `design_notes.md`
-2. Verify `capabilities.json`
-3. Run final submission checklist
-4. Draft email to `careers@lyftr.ai`
-
-If you want, I can also:
-
-- Run a quick lint/format on `README.md`
-- Commit this change
-- Prepare the submission email draft
-
-Say **next** to continue with the checklist.
