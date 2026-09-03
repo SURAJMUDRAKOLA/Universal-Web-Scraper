@@ -971,62 +971,111 @@ def _structured_data(soup: BeautifulSoup) -> list:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def analyze_static_quality(source: PageSource, result: dict) -> str:
-    """Decide whether browser rendering is needed.
-
-    Bug 5 fix: Large HTML with no extracted text → STATIC_PARTIAL (not STATIC_EMPTY).
-    Fix 2: Detect bot-block / JS-disabled pages → JS_REQUIRED.
-    Fix 3: SSR text with no links/images → STATIC_PARTIAL for JS enrichment.
-    """
     html = source.html or ""
     html_lower = html.lower()
     sections = result.get("content", {}).get("sections", [])
     total_text = result.get("statistics", {}).get("textCharacters", 0)
 
-    # Fix 2: Detect explicit JS-disabled / bot-block pages (e.g. Amazon)
-    _JS_DISABLED_SIGNALS = [
+    # --- Hard JS Required signals (always trigger browser) ---
+
+    # Explicit bot-block / JS-disabled page (Amazon, some Cloudflare pages)
+    _JS_DISABLED = [
         "javascript is disabled",
         "javascript is not available",
         "enable javascript",
         "please enable javascript",
     ]
-    if any(signal in html_lower for signal in _JS_DISABLED_SIGNALS):
+    if any(s in html_lower for s in _JS_DISABLED):
         return JS_REQUIRED
 
-    # SPA signals
+    # Old-style empty SPA shell (Create React App, Vue CLI default)
     has_root_app = (
         'id="root"' in html_lower or "id='root'" in html_lower or
         'id="app"'  in html_lower or "id='app'"  in html_lower
     )
     script_count = html_lower.count("<script")
     p_count = html_lower.count("<p")
-
     if has_root_app and p_count < 3 and script_count > 5:
         return JS_REQUIRED
 
-    # Noscript with meaningful content
-    try:
-        ns_tags = BeautifulSoup(html, "lxml").find_all("noscript")
-        for ns in ns_tags:
-            if len(_safe_text(ns)) > 100:
-                return JS_REQUIRED
-    except Exception:
-        pass
+    # --- Soft JS signals (static got content, but JS adds real value) ---
+    # Check these against the raw HTML before static extraction results
 
+    try:
+        soup = BeautifulSoup(html, "lxml")
+
+        # Signal 1: Lazy-loaded images (static gets blank/placeholder src)
+        lazy_imgs = soup.find_all("img", attrs={"data-src": True})
+        placeholder_imgs = [
+            img for img in soup.find_all("img")
+            if not img.get("src") or
+               img.get("src", "").startswith("data:image") or
+               "placeholder" in img.get("src", "").lower() or
+               img.get("loading") == "lazy"
+        ]
+        has_lazy_images = len(lazy_imgs) > 0 or len(placeholder_imgs) > 3
+
+        # Signal 2: Pagination links present in static HTML
+        has_pagination = bool(
+            soup.select_one("a.morelink") or          # Hacker News
+            soup.select_one("a[rel='next']") or        # Standard
+            soup.select_one(".pagination") or           # Common class
+            soup.select_one("[aria-label='Next page']") or
+            soup.find("a", string=lambda t: t and "next" in t.lower())
+        )
+
+        # Signal 3: Tab panels with hidden content
+        tabs = soup.find_all(attrs={"role": "tab"})
+        has_tabs = len(tabs) > 1 and any(
+            str(t.get("aria-selected", "true")).lower() == "false"
+            for t in tabs
+        )
+
+        # Signal 4: Load more / Show more buttons
+        has_load_more = bool(soup.find(
+            lambda tag: tag.name in ("button", "a") and
+            tag.get_text() and
+            any(kw in tag.get_text().lower() for kw in
+                ("load more", "show more", "see more", "view more"))
+        ))
+
+        # Signal 5: JS framework present (Next.js, Nuxt, SvelteKit)
+        # These frameworks drive content updates via JS even on SSR pages
+        has_js_framework = (
+            '"__next"' in html or       # Next.js root
+            "data-reactroot" in html or  # React SSR marker
+            "data-n-head" in html or     # Nuxt.js marker
+            "__NEXT_DATA__" in html or   # Next.js data
+            "nuxt" in html_lower and script_count > 8
+        )
+
+        # Any soft signal -> STATIC_PARTIAL (run JS, merge results)
+        soft_signals = [has_lazy_images, has_pagination, has_tabs, has_load_more]
+        if any(soft_signals):
+            return STATIC_PARTIAL
+
+        # JS framework present but no other signals -> still try JS
+        # because framework may drive content updates we can't see statically
+        if has_js_framework and total_text > 0:
+            return STATIC_PARTIAL
+
+    except Exception:
+        pass  # If signal detection fails, fall through to text-based check
+
+    # --- Text-based fallback ---
     if not sections or total_text == 0:
-        # Bug 5 fix: large HTML but no extracted text = extraction issue,
-        # not a JS-rendered page — return STATIC_PARTIAL to avoid browser overhead
         if len(html) > 50_000:
             return STATIC_PARTIAL
         return STATIC_EMPTY
+
     if total_text < MIN_TEXT_LENGTH_STATIC:
         return STATIC_PARTIAL
 
-    # Fix 3: SSR pages with substantial text but no links AND no images
-    # (e.g. Foxtale, React-hydrated pages) — trigger JS enrichment to load resources
+    # SSR text with no links and no images
     total_links = sum(len(s.get("content", {}).get("links", [])) for s in sections)
     total_images = sum(len(s.get("content", {}).get("images", [])) for s in sections)
     if total_text > 2000 and total_links == 0 and total_images == 0:
-        return STATIC_PARTIAL  # trigger JS enrichment to capture hydrated resources
+        return STATIC_PARTIAL
 
     return STATIC_COMPLETE
 
