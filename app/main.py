@@ -196,10 +196,8 @@ async def scrape(data: ScrapeRequest):
     source = await fetch_page(url)
 
     if source.error:
-        return JSONResponse(
-            status_code=502,
-            content=_failure(url, source.error, "fetch"),
-        )
+        # Fix D: return 200 with schema-compliant error body — frontend reads result.errors[]
+        return _failure(url, source.error, "fetch")
 
     # ── Phase 3: Static extraction ────────────────────────────────────────────
     try:

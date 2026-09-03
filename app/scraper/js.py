@@ -45,12 +45,12 @@ _LOAD_MORE_SELECTORS = [
 ]
 
 _PAGINATION_SELECTORS = [
-    "a[rel='next']",
-    "a:has-text('Next')",
-    ".pagination a.next",
-    ".pagination__next",
-    "[aria-label='Next page']",
-    "a.morelink",        # Hacker News
+    "a.morelink",               # Hacker News (highly specific, try first)
+    "a[rel='next']",            # Standard rel=next
+    ".pagination__next",        # Common framework pattern
+    ".pagination a.next",       # Common pattern
+    "[aria-label='Next page']", # ARIA pattern
+    "a:has-text('Next')",       # Text-based fallback
 ]
 
 # Null-safe scroll height JS (guard against headless pages without body)

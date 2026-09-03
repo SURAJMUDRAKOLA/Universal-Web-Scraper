@@ -1,14 +1,16 @@
 """Async static fetching and shared HTML extraction pipeline.
 
-Pipeline order:
+Pipeline order (corrected — metadata BEFORE decomposition):
   1. fetch_page         – async httpx + urllib fallback
-  2. _extract_components – pull nav/footer/language-selector OUT first (before scoring)
-  3. _clean             – strip remaining noise elements
-  4. _primary_root      – score candidates, pick best content root
-  5. _build_sections    – heading-driven hierarchy with ownership enforcement
-  6. _dedup_sections    – fingerprint-based deduplication
-  7. _merge_resources   – aggregate links/images across sections
-  8. Compose final result dict
+  2. _metadata          – extract BEFORE any decomposition (Bug 1 fix)
+  3. _structured_data   – extract BEFORE any decomposition
+  4. _extract_components – pull nav/footer/language-selector OUT (decomposes chrome)
+  5. _clean             – strip remaining noise elements
+  6. _primary_root      – two-pass: priority selectors first, scoring fallback (Bug 2 fix)
+  7. _build_sections    – heading-driven hierarchy with ownership enforcement
+  8. _dedup_sections    – fingerprint-based deduplication
+  9. _merge_resources   – aggregate links/images across sections
+ 10. Compose final result dict
 """
 from __future__ import annotations
 
@@ -19,7 +21,7 @@ import json
 import re
 import time
 import urllib.request
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urljoin
 
@@ -64,12 +66,24 @@ _NOISE_SELECTORS = [
     "[role='dialog']", "[aria-modal='true']",
 ]
 
-# ── Generic content candidates (ordered by specificity) ──────────────────────
-_CONTENT_SELECTORS = [
-    "article", "main", "[role='main']",
-    "#content", "#main-content", "#mw-content-text", "#bodyContent",
-    ".article-body", ".post-content", ".content",
+# ── Bug 2 fix: Two-pass primary root selection ────────────────────────────────
+# Pass 1: high-confidence named selectors tried in order; first match with
+# >200 chars of text is returned immediately without scoring.
+_PRIORITY_SELECTORS = [
+    "#mw-content-text",    # Wikipedia article body
+    "#bodyContent",        # Wikipedia older skin
+    "article",             # Semantic article element
+    "main",                # HTML5 main landmark
+    "[role='main']",       # ARIA main role
+    "#content",            # Common CMS pattern
+    "#main-content",       # Common pattern
+    ".article-body",       # News sites
+    ".post-content",       # Blog pattern
+    ".content",            # Generic fallback
 ]
+
+# Pass 2 fallback: generic candidates fed into _score()
+_CONTENT_SELECTORS = _PRIORITY_SELECTORS  # backward-compat alias
 
 # ── Language-code regex (ISO 639: 2–5 alpha chars, optional subtag) ──────────
 _LANG_CODE_RE = re.compile(r"^[a-zA-Z]{2,5}(-[a-zA-Z0-9]{2,4})?$")
@@ -101,12 +115,13 @@ class PageSource:
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def fetch_page(url: str) -> PageSource:
-    """Async fetch with httpx first, urllib fallback for sites that 403 httpx."""
+    """Async fetch with httpx first, urllib fallback for sites that 403 httpx.
+
+    Fix E: normalize_url() is NOT called here — main.py already normalizes
+    the URL before calling fetch_page(), so we skip the redundant DNS lookup.
+    """
     t0 = time.perf_counter()
-    try:
-        current_url = normalize_url(url)
-    except URLPolicyError as exc:
-        return PageSource(url, url, "", None, "", str(exc))
+    current_url = url  # Already normalized by caller (Fix E)
 
     # ── httpx ─────────────────────────────────────────────────────────────────
     httpx_status: int | None = None
@@ -242,10 +257,9 @@ def _is_language_selector(tag: Tag) -> bool:
     """Return True when tag is a language selector.
 
     Two strategies:
-    1. ISO-code text: ≥10 anchors whose text matches ^[a-z]{2,5}$ (old Wikipedia style)
+    1. ISO-code text: ≥10 anchors whose text matches ^[a-z]{2,5}$
     2. interlanguage-link class: ≥10 child <li> elements with class containing
        'interlanguage-link' (current Wikipedia style)
-    3. >50% of direct children are <li class='interlanguage-link'>
     """
     try:
         # Strategy 1: ISO code anchor texts
@@ -255,14 +269,14 @@ def _is_language_selector(tag: Tag) -> bool:
                 1 for a in anchors
                 if a and hasattr(a, "get_text") and _LANG_CODE_RE.match(a.get_text(strip=True))
             )
-            if lang_like >= max(8, len(anchors) * 0.5):  # lowered from 70% to 50%
+            if lang_like >= max(8, len(anchors) * 0.5):
                 return True
 
         # Strategy 2: interlanguage-link li children (Wikipedia current style)
         interlang_li = [
             li for li in tag.find_all("li", limit=300)
             if li and hasattr(li, "get") and
-            any("interlanguage" in c for c in (li.get("class") or []))
+            any("interlanguage" in str(c) for c in (li.get("class") or []))
         ]
         if len(interlang_li) >= 10:
             return True
@@ -275,7 +289,7 @@ def _is_language_selector(tag: Tag) -> bool:
 def _has_interlanguage_children(soup: BeautifulSoup) -> Tag | None:
     """Find the top-level language-selector container for Wikipedia-style pages.
 
-    Scans up to 500 li elements (performance limit), then walks up up to 5
+    Scans up to 500 li elements (performance limit), then walks up up to 6
     ancestor levels looking for a tag with 'lang' or 'interlanguage' in its
     id/class. Returns that named ancestor, or the immediate <ul> parent.
     """
@@ -289,11 +303,9 @@ def _has_interlanguage_children(soup: BeautifulSoup) -> Tag | None:
         if len(inter_li) < 10:
             return None
 
-        # Start from the immediate parent of the first interlanguage li
         candidate = inter_li[0].parent
         if not candidate:
             return None
-        # Walk up to find a named container (e.g. #p-lang-btn)
         for _ in range(6):
             parent = candidate.parent if candidate else None
             if not parent or getattr(parent, 'name', None) in (None, "body", "[document]"):
@@ -311,11 +323,15 @@ def _has_interlanguage_children(soup: BeautifulSoup) -> Tag | None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Component extraction — runs FIRST, decomposes chrome from soup
+# Component extraction — runs AFTER metadata, decomposes chrome from soup
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _extract_components(soup: BeautifulSoup, base_url: str) -> dict[str, list]:
-    """Extract page chrome into components dict and remove from soup."""
+    """Extract page chrome into components dict and remove from soup.
+
+    Fix A: Sidebar removal now requires the candidate to have < 500 chars of
+    text. Real article content containers are large; true sidebars are small.
+    """
     components: dict[str, list] = {
         "navigation": [],
         "tableOfContents": [],
@@ -324,7 +340,7 @@ def _extract_components(soup: BeautifulSoup, base_url: str) -> dict[str, list]:
         "footer": [],
     }
 
-    # We collect tags first, then decompose — avoids modifying a live iterator
+    # Collect tags first, then decompose — avoids modifying a live iterator
     def _collect_and_remove(tags: list, action):
         to_remove = []
         for tag in tags:
@@ -370,7 +386,6 @@ def _extract_components(soup: BeautifulSoup, base_url: str) -> dict[str, list]:
         if links:
             comps["languageSelector"].append({"languages": links})
 
-    # Strategy A: find container with 'lang'/'interlanguage' in class/id
     lang_tags = []
     seen_lang_ids: set[int] = set()
 
@@ -383,8 +398,17 @@ def _extract_components(soup: BeautifulSoup, base_url: str) -> dict[str, list]:
         lang_tags.append(wiki_lang_parent)
 
     # Strategy A: keyword-based search
+    # IMPORTANT: Skip structural root elements (html, head, body, main).
+    # Wikipedia's <html> element has class names containing 'language'
+    # (e.g. 'vector-feature-language-in-header-enabled'), causing the entire
+    # document to be matched and decomposed. We must only match chrome widgets,
+    # not the document root or primary landmark elements.
+    _SKIP_LANG_TAGS = {"html", "head", "body", "main", "[document]"}
     for candidate in soup.find_all(True, limit=600):
         if not hasattr(candidate, "get"):
+            continue
+        # Skip structural root elements — they are never a language selector
+        if getattr(candidate, 'name', None) in _SKIP_LANG_TAGS:
             continue
         eid = id(candidate)
         if eid in seen_lang_ids:
@@ -392,7 +416,6 @@ def _extract_components(soup: BeautifulSoup, base_url: str) -> dict[str, list]:
         ci = _tag_class_id(candidate)
         tag_id = _safe_get(candidate, "id").lower()
         aria_label = _safe_get(candidate, "aria-label").lower()
-        # Match by keyword OR by aria-label containing "language"
         keyword_match = (
             any(kw in ci for kw in ("lang", "interlanguage", "language"))
             or "language" in aria_label
@@ -400,7 +423,6 @@ def _extract_components(soup: BeautifulSoup, base_url: str) -> dict[str, list]:
         )
         if keyword_match and _is_language_selector(candidate):
             seen_lang_ids.add(eid)
-            # Also mark children as seen so we don't double-add
             for child in candidate.find_all(True):
                 seen_lang_ids.add(id(child))
             lang_tags.append(candidate)
@@ -421,7 +443,7 @@ def _extract_components(soup: BeautifulSoup, base_url: str) -> dict[str, list]:
             comps["navigation"].append({"label": label, "links": links})
     _collect_and_remove(list(soup.find_all("nav")), _nav_action)
 
-    # ── Sidebars ──────────────────────────────────────────────────────────────
+    # ── Sidebars (Fix A: only remove small sidebars < 500 chars) ─────────────
     def _sidebar_action(tag, comps):
         comps["sidebar"].append({"text": _safe_text(tag)[:300]})
 
@@ -431,7 +453,9 @@ def _extract_components(soup: BeautifulSoup, base_url: str) -> dict[str, list]:
             continue
         ci = _tag_class_id(candidate)
         if "sidebar" in ci or candidate.name == "aside":
-            sidebar_tags.append(candidate)
+            # Fix A: skip if candidate contains too much text — likely article content
+            if len(_safe_text(candidate)) < 500:
+                sidebar_tags.append(candidate)
     _collect_and_remove(sidebar_tags, _sidebar_action)
 
     return components
@@ -448,7 +472,11 @@ _NOISE_KEYWORDS = [
 
 
 def _clean(soup: BeautifulSoup) -> None:
-    """Remove script/style/noise tags. Uses Python-level keyword check (no CSS i-flag)."""
+    """Remove script/style/noise tags.
+
+    Fix B: Never remove heading tags (h1-h6) even if they carry aria-hidden.
+    Wikipedia uses aria-hidden on edit-section spans inside headings.
+    """
     # Remove by tag name first
     for selector in _NOISE_SELECTORS:
         for el in soup.select(selector):
@@ -474,7 +502,12 @@ def _clean(soup: BeautifulSoup) -> None:
             tag.decompose()
         except Exception:
             pass
+
+    # Fix B: Remove aria-hidden elements but NEVER remove heading tags
     for tag in list(soup.find_all(attrs={"aria-hidden": "true"})):
+        # Never remove heading tags even if aria-hidden (Fix B)
+        if tag.name and re.match(r"^h[1-6]$", tag.name):
+            continue
         try:
             tag.decompose()
         except Exception:
@@ -499,7 +532,7 @@ def _text(tag: Tag) -> str:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Content scoring
+# Content scoring — used as fallback in two-pass primary root selection
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _score(tag: Tag) -> float:
@@ -542,10 +575,26 @@ def _score(tag: Tag) -> float:
 
 
 def _primary_root(soup: BeautifulSoup) -> Tag:
-    candidates = [
-        node for sel in _CONTENT_SELECTORS
-        for node in soup.select(sel)
-    ] + list(soup.find_all(["div", "section"], limit=120))
+    """Two-pass primary content root selection (Bug 2 fix).
+
+    Pass 1 — Priority selectors tried in order. The first matching element
+    that contains more than 200 characters of text is returned immediately,
+    bypassing scoring. This guarantees Wikipedia always gets #mw-content-text.
+
+    Pass 2 — If no priority selector matched with enough text, fall back to
+    scoring all div/section candidates (original behaviour).
+    """
+    # Pass 1: high-confidence named selectors
+    for selector in _PRIORITY_SELECTORS:
+        try:
+            node = soup.select_one(selector)
+            if node and len(_text(node)) > 200:
+                return node
+        except Exception:
+            continue
+
+    # Pass 2: scoring fallback for unknown site structures
+    candidates = list(soup.find_all(["div", "section"], limit=120))
     unique = list({id(node): node for node in candidates if node}.values())
     if not unique:
         return soup.body or soup
@@ -781,11 +830,15 @@ def _merge_resources(sections: list[dict]) -> dict[str, list]:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Metadata extraction
+# Metadata extraction — called BEFORE any decomposition (Bug 1 fix)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _metadata(soup: BeautifulSoup, base_url: str) -> dict:
-    """Extract page metadata with full fallback chain. Never raises."""
+    """Extract page metadata with full fallback chain. Never raises.
+
+    Bug 1 fix: This must be called BEFORE _extract_components() so that the
+    <title> tag and <head> meta tags are still intact in the soup.
+    """
     try:
         def _meta(attrs: dict) -> str:
             try:
@@ -905,11 +958,18 @@ def _structured_data(soup: BeautifulSoup) -> list:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Four-state quality analysis
+# Four-state quality analysis (Bug 5 fix)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def analyze_static_quality(source: PageSource, result: dict) -> str:
-    """Decide whether browser rendering is needed."""
+    """Decide whether browser rendering is needed.
+
+    Bug 5 fix: If total_text is zero but the raw HTML is large (>50 KB),
+    return STATIC_PARTIAL instead of STATIC_EMPTY. Large HTML with no
+    extracted text indicates an extraction bug, not a JS-rendered page.
+    This prevents triggering full browser rendering for static pages where
+    the extractor merely failed.
+    """
     html = source.html or ""
     html_lower = html.lower()
     sections = result.get("content", {}).get("sections", [])
@@ -936,6 +996,10 @@ def analyze_static_quality(source: PageSource, result: dict) -> str:
         pass
 
     if not sections or total_text == 0:
+        # Bug 5 fix: large HTML but no extracted text = extraction issue,
+        # not a JS-rendered page — return STATIC_PARTIAL to avoid browser overhead
+        if len(html) > 50_000:
+            return STATIC_PARTIAL
         return STATIC_EMPTY
     if total_text < MIN_TEXT_LENGTH_STATIC:
         return STATIC_PARTIAL
@@ -947,8 +1011,20 @@ def analyze_static_quality(source: PageSource, result: dict) -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def extract_page(source: PageSource, strategy: str = "static") -> dict:
-    """Parse HTML → canonical result dict. Never raises; errors go into result."""
+    """Parse HTML → canonical result dict. Never raises; errors go into result.
 
+    Correct pipeline order (Bug 1 fix):
+    1. Parse HTML
+    2. Extract metadata FIRST (before any decomposition)
+    3. Extract structured data FIRST (before any decomposition)
+    4. Extract and remove components (_extract_components)
+    5. Clean remaining noise (_clean)
+    6. Find primary content root (two-pass: priority → scoring)
+    7. Build sections
+    8. Diagnostic warning if no sections from non-empty root (Bug 4)
+    9. Fallback section with guard against Doctype text (Bug 3)
+    10. Deduplicate, merge resources, compose result
+    """
     # Non-HTML content types
     if source.content_type and not source.content_type.startswith(
         ("text/html", "application/xhtml", "text/")
@@ -962,50 +1038,67 @@ def extract_page(source: PageSource, strategy: str = "static") -> dict:
 
     errors: list[dict] = []
 
-    # 1. Extract page chrome (side-effect: removes chrome from soup)
-    try:
-        components = _extract_components(soup, source.final_url)
-    except Exception as exc:
-        components = {"navigation": [], "tableOfContents": [], "languageSelector": [], "sidebar": [], "footer": []}
-        errors.append({"message": f"Component extraction error: {exc}", "phase": "analysis", "recoverable": True})
-
-    # 2. Clean remaining noise
-    try:
-        _clean(soup)
-    except Exception:
-        pass
-
-    # 3. Extract metadata
+    # ── Step 1: Extract metadata BEFORE any decomposition (Bug 1 fix) ─────────
     try:
         meta = _metadata(soup, source.final_url)
     except Exception as exc:
         meta = {"title": "", "description": "", "language": "en", "canonical": None, "openGraph": {}, "twitter": {}}
         errors.append({"message": f"Metadata error: {exc}", "phase": "parse", "recoverable": True})
 
-    # 4. Structured data
+    # ── Step 2: Extract structured data BEFORE decomposition ──────────────────
     try:
         structured = _structured_data(soup)
     except Exception:
         structured = []
 
-    # 5. Primary content root
+    # ── Step 3: Extract and remove page chrome ─────────────────────────────────
+    try:
+        components = _extract_components(soup, source.final_url)
+    except Exception as exc:
+        components = {"navigation": [], "tableOfContents": [], "languageSelector": [], "sidebar": [], "footer": []}
+        errors.append({"message": f"Component extraction error: {exc}", "phase": "analysis", "recoverable": True})
+
+    # ── Step 4: Clean remaining noise ─────────────────────────────────────────
+    try:
+        _clean(soup)
+    except Exception:
+        pass
+
+    # ── Step 5: Primary content root (two-pass, Bug 2 fix) ───────────────────
     try:
         root = _primary_root(soup)
     except Exception:
         root = soup.body or soup
 
-    # 6. Build sections
+    # ── Step 6: Build sections ────────────────────────────────────────────────
     try:
         sections = _build_sections(root, source.final_url)
     except Exception as exc:
         sections = []
         errors.append({"message": f"Section build error: {exc}", "phase": "extract", "recoverable": True})
 
-    # 7. Fallback: full-page text if no headings produced sections
+    # ── Step 7: Diagnostic warning when sections empty but root has content (Bug 4) ──
+    if not sections and root and len(_text(root)) > 200:
+        errors.append({
+            "message": (
+                f"Section builder found no headings in root element "
+                f"({root.name}#{_safe_get(root, 'id')}). "
+                f"Root has {len(_text(root))} chars of text."
+            ),
+            "phase": "extract",
+            "recoverable": True,
+        })
+
+    # ── Step 8: Fallback section with guard against Doctype text (Bug 3) ──────
     if not sections:
         try:
             text = _text(root)[:MAX_TEXT_PER_SECTION]
-            if text:
+            # Bug 3 fix: guard against Doctype NavigableString producing "html"
+            if len(text.strip()) < 10:
+                body = soup.body
+                if body:
+                    text = _text(body)[:MAX_TEXT_PER_SECTION]
+            if text and len(text.strip()) >= 10:
                 sections = [{
                     "id": "h1-content",
                     "parentId": None,
@@ -1025,13 +1118,13 @@ def extract_page(source: PageSource, strategy: str = "static") -> dict:
         except Exception as exc:
             errors.append({"message": f"Fallback extraction error: {exc}", "phase": "extract", "recoverable": True})
 
-    # 8. Deduplication
+    # ── Step 9: Deduplication ─────────────────────────────────────────────────
     try:
         sections, deduped_count = _dedup_sections(sections)
     except Exception:
         deduped_count = 0
 
-    # 9. Merge resources
+    # ── Step 10: Merge resources ──────────────────────────────────────────────
     try:
         resources = _merge_resources(sections)
     except Exception:
