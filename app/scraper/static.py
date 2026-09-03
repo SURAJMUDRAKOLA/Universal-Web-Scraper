@@ -753,6 +753,15 @@ def _build_sections(root: Tag, base_url: str) -> list[dict]:
 
             raw_html = (str(heading) + fragment_html)[:RAW_HTML_TRUNCATE]
 
+            # Fix 1: extract resources from heading's parent container, not just
+            # owned blocks. This captures links/images in surrounding wrappers
+            # (e.g. Foxtale SSR pages where links live in the section container).
+            section_root = heading.parent if heading.parent else heading
+            try:
+                section_resources = _resources(section_root, base_url)
+            except Exception:
+                section_resources = _resources(fragment, base_url)
+
             sections.append({
                 "id": section_id,
                 "parentId": parent_id,
@@ -764,7 +773,7 @@ def _build_sections(root: Tag, base_url: str) -> list[dict]:
                 "content": {
                     "headings": [label],
                     "text": text,
-                    **_resources(fragment, base_url),
+                    **section_resources,
                 },
                 "rawHtml": raw_html,
                 "truncated": len(str(heading) + fragment_html) > RAW_HTML_TRUNCATE,
@@ -964,16 +973,24 @@ def _structured_data(soup: BeautifulSoup) -> list:
 def analyze_static_quality(source: PageSource, result: dict) -> str:
     """Decide whether browser rendering is needed.
 
-    Bug 5 fix: If total_text is zero but the raw HTML is large (>50 KB),
-    return STATIC_PARTIAL instead of STATIC_EMPTY. Large HTML with no
-    extracted text indicates an extraction bug, not a JS-rendered page.
-    This prevents triggering full browser rendering for static pages where
-    the extractor merely failed.
+    Bug 5 fix: Large HTML with no extracted text → STATIC_PARTIAL (not STATIC_EMPTY).
+    Fix 2: Detect bot-block / JS-disabled pages → JS_REQUIRED.
+    Fix 3: SSR text with no links/images → STATIC_PARTIAL for JS enrichment.
     """
     html = source.html or ""
     html_lower = html.lower()
     sections = result.get("content", {}).get("sections", [])
     total_text = result.get("statistics", {}).get("textCharacters", 0)
+
+    # Fix 2: Detect explicit JS-disabled / bot-block pages (e.g. Amazon)
+    _JS_DISABLED_SIGNALS = [
+        "javascript is disabled",
+        "javascript is not available",
+        "enable javascript",
+        "please enable javascript",
+    ]
+    if any(signal in html_lower for signal in _JS_DISABLED_SIGNALS):
+        return JS_REQUIRED
 
     # SPA signals
     has_root_app = (
@@ -1003,6 +1020,14 @@ def analyze_static_quality(source: PageSource, result: dict) -> str:
         return STATIC_EMPTY
     if total_text < MIN_TEXT_LENGTH_STATIC:
         return STATIC_PARTIAL
+
+    # Fix 3: SSR pages with substantial text but no links AND no images
+    # (e.g. Foxtale, React-hydrated pages) — trigger JS enrichment to load resources
+    total_links = sum(len(s.get("content", {}).get("links", [])) for s in sections)
+    total_images = sum(len(s.get("content", {}).get("images", [])) for s in sections)
+    if total_text > 2000 and total_links == 0 and total_images == 0:
+        return STATIC_PARTIAL  # trigger JS enrichment to capture hydrated resources
+
     return STATIC_COMPLETE
 
 
