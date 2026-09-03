@@ -1,431 +1,890 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Universal Web Scraper - Lyftr AI</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Universal Web Scraper</title>
+<meta name="description" content="Universal Web Scraper — extract structured data from any website, static or JS-rendered.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ── Reset & Base ──────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
+:root {
+  --bg:        #0b0f1a;
+  --surface:   #131929;
+  --surface2:  #1a2235;
+  --border:    #1e2d47;
+  --accent:    #4f8ef7;
+  --accent2:   #7c3aed;
+  --green:     #22c55e;
+  --amber:     #f59e0b;
+  --red:       #ef4444;
+  --text:      #e2e8f0;
+  --muted:     #8899b4;
+  --code-bg:   #0d1117;
+  --radius:    10px;
+  --transition: 0.15s ease;
+}
 
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  min-height: 100vh;
+}
 
-        .header {
-            text-align: center;
-            color: white;
-            margin-bottom: 40px;
-        }
+/* ── Layout ──────────────────────────────────────────────────────────────── */
+.app-header {
+  background: linear-gradient(135deg, #0f1a2e 0%, #131929 60%, #1a1040 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 32px 40px 28px;
+  position: relative;
+  overflow: hidden;
+}
+.app-header::before {
+  content: '';
+  position: absolute;
+  top: -60px; right: -60px;
+  width: 300px; height: 300px;
+  background: radial-gradient(circle, rgba(79,142,247,0.10) 0%, transparent 70%);
+  pointer-events: none;
+}
+.header-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(79,142,247,0.12);
+  border: 1px solid rgba(79,142,247,0.3);
+  color: var(--accent);
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 3px 10px; border-radius: 20px;
+  margin-bottom: 12px;
+}
+.app-header h1 {
+  font-size: 26px; font-weight: 800; letter-spacing: -0.5px;
+  background: linear-gradient(135deg, #e2e8f0, #4f8ef7);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 6px;
+}
+.app-header p { color: var(--muted); font-size: 14px; }
 
-        .header h1 {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-        }
+.container { max-width: 1200px; margin: 0 auto; padding: 32px 40px 80px; }
 
-        .header p {
-            opacity: 0.9;
-            font-size: 1.1rem;
-        }
+/* ── Input panel ─────────────────────────────────────────────────────────── */
+.input-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  margin-bottom: 24px;
+}
+.input-row { display: flex; gap: 10px; align-items: center; }
+#urlInput {
+  flex: 1;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  padding: 12px 16px;
+  outline: none;
+  transition: border-color var(--transition);
+}
+#urlInput:focus { border-color: var(--accent); }
+#scrapeBtn {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border: none; border-radius: 8px;
+  color: #fff; font-weight: 600; font-size: 14px;
+  padding: 12px 24px; cursor: pointer;
+  transition: opacity var(--transition), transform var(--transition);
+  white-space: nowrap;
+}
+#scrapeBtn:hover { opacity: 0.92; transform: translateY(-1px); }
+#scrapeBtn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
-        .scraper-card {
-            background: white;
-            border-radius: 12px;
-            padding: 30px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-            margin-bottom: 30px;
-        }
+/* ── Loading ─────────────────────────────────────────────────────────────── */
+.loading { display: none; padding: 16px 0; }
+.loading.active { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; }
+.spinner {
+  width: 18px; height: 18px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
-        .input-group {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
+/* ── Error box ───────────────────────────────────────────────────────────── */
+.error-box {
+  background: rgba(239,68,68,0.08);
+  border: 1px solid rgba(239,68,68,0.3);
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+  color: #fca5a5;
+  font-size: 13px;
+  display: none;
+}
+.error-box.active { display: block; }
+.error-box strong { display: block; margin-bottom: 4px; color: var(--red); }
 
-        input[type="text"] {
-            flex: 1;
-            padding: 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 1rem;
-            transition: border-color 0.3s;
-        }
+/* ── Stats bar ───────────────────────────────────────────────────────────── */
+.stats-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+  display: none;
+}
+.stats-bar.visible { display: grid; }
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+.stat-value {
+  font-size: 20px; font-weight: 700;
+  color: var(--accent); margin-bottom: 2px;
+}
+.stat-label {
+  font-size: 11px; font-weight: 600;
+  color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em;
+}
+.strategy-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 600;
+  padding: 2px 8px; border-radius: 12px; text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.strategy-static  { background: rgba(34,197,94,0.12); color: var(--green); border: 1px solid rgba(34,197,94,0.3); }
+.strategy-js      { background: rgba(245,158,11,0.12); color: var(--amber); border: 1px solid rgba(245,158,11,0.3); }
+.strategy-static-js { background: rgba(124,58,237,0.12); color: #a78bfa; border: 1px solid rgba(124,58,237,0.3); }
 
-        input[type="text"]:focus {
-            outline: none;
-            border-color: #667eea;
-        }
+/* ── Meta info ───────────────────────────────────────────────────────────── */
+.meta-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+  display: none;
+}
+.meta-card.visible { display: block; }
+.meta-title { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+.meta-url { color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 12px; word-break: break-all; margin-bottom: 8px; }
+.meta-desc { color: var(--muted); font-size: 13px; line-height: 1.5; }
+.meta-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.tag {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; padding: 2px 8px; border-radius: 10px;
+  color: var(--muted); border: 1px solid var(--border); background: var(--surface2);
+}
 
-        button {
-            padding: 15px 30px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
+/* ── Tabs ────────────────────────────────────────────────────────────────── */
+.results-panel { display: none; }
+.results-panel.visible { display: block; }
 
-        button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-        }
+.tab-bar {
+  display: flex; gap: 2px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+  overflow-x: auto;
+}
+.tab-btn {
+  background: none; border: none; border-bottom: 2px solid transparent;
+  color: var(--muted); font-size: 13px; font-weight: 500;
+  padding: 10px 16px; cursor: pointer; white-space: nowrap;
+  transition: color var(--transition), border-color var(--transition);
+  margin-bottom: -1px;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
 
-        button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
 
-        .loading {
-            display: none;
-            text-align: center;
-            padding: 20px;
-        }
+/* ── Content tree ────────────────────────────────────────────────────────── */
+.section-tree { display: flex; flex-direction: column; gap: 8px; }
 
-        .loading.active {
-            display: block;
-        }
+.section-node {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: border-color var(--transition);
+}
+.section-node:hover { border-color: rgba(79,142,247,0.4); }
 
-        .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 10px;
-        }
+.section-header-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px; cursor: pointer;
+  user-select: none;
+}
+.section-toggle {
+  font-size: 11px; color: var(--muted);
+  width: 16px; flex-shrink: 0; transition: transform var(--transition);
+}
+.section-toggle.open { transform: rotate(90deg); }
+.depth-indent { flex-shrink: 0; }
+.section-level-badge {
+  font-size: 10px; font-weight: 700; color: var(--accent);
+  background: rgba(79,142,247,0.12); border: 1px solid rgba(79,142,247,0.2);
+  padding: 1px 6px; border-radius: 4px; flex-shrink: 0;
+  min-width: 30px; text-align: center;
+}
+.section-label {
+  font-size: 14px; font-weight: 600; color: var(--text); flex: 1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.section-type {
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; padding: 2px 7px; border-radius: 10px;
+  flex-shrink: 0; color: var(--muted); border: 1px solid var(--border);
+}
+.section-text-preview {
+  font-size: 12px; color: var(--muted);
+  padding: 0 16px; margin-left: 40px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: 500px;
+}
 
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
+.section-body {
+  padding: 0 16px 14px 16px;
+  border-top: 1px solid var(--border);
+  display: none;
+}
+.section-body.open { display: block; }
+.section-text {
+  font-size: 13px; color: #c8d6e8; line-height: 1.7;
+  padding: 12px 0; white-space: pre-wrap; word-break: break-word;
+}
+.section-children { margin-left: 24px; margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
 
-        .error {
-            display: none;
-            background: #fee;
-            color: #c33;
-            padding: 15px;
-            border-radius: 8px;
-            border-left: 4px solid #c33;
-            margin-bottom: 20px;
-        }
+/* ── Links tab ───────────────────────────────────────────────────────────── */
+.links-list { display: flex; flex-direction: column; gap: 4px; }
+.link-row {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 13px;
+  overflow: hidden;
+}
+.link-text { color: var(--text); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+.link-href { color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 11px; word-break: break-all; flex: 2; min-width: 0; }
 
-        .error.active {
-            display: block;
-        }
+/* ── Images tab ──────────────────────────────────────────────────────────── */
+.images-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+.image-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.image-card img {
+  width: 100%; height: 110px; object-fit: cover; display: block;
+  background: var(--surface2);
+}
+.image-card .image-alt {
+  font-size: 11px; color: var(--muted);
+  padding: 6px 8px; line-height: 1.4;
+  overflow: hidden; text-overflow: ellipsis;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
 
-        .results {
-            display: none;
-        }
+/* ── Tables tab ──────────────────────────────────────────────────────────── */
+.table-wrapper {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: auto;
+  margin-bottom: 16px;
+}
+.table-caption {
+  font-size: 12px; font-weight: 600; color: var(--muted);
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+}
+table { width: 100%; border-collapse: collapse; }
+th {
+  background: var(--surface2);
+  color: var(--muted); font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  padding: 8px 12px; text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+td {
+  padding: 8px 12px; font-size: 13px; color: var(--text);
+  border-bottom: 1px solid rgba(30,45,71,0.6);
+  vertical-align: top;
+}
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(79,142,247,0.04); }
 
-        .results.active {
-            display: block;
-        }
+/* ── Components tab ──────────────────────────────────────────────────────── */
+.component-section { margin-bottom: 24px; }
+.component-section h3 {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--muted);
+  margin-bottom: 10px; padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.comp-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 13px; color: var(--muted);
+  margin-bottom: 6px;
+  line-height: 1.5;
+}
+.lang-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.lang-chip {
+  font-size: 11px; font-weight: 600;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 4px; padding: 2px 6px; color: var(--muted);
+}
 
-        .results-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid #e0e0e0;
-        }
+/* ── Interactions tab ────────────────────────────────────────────────────── */
+.interaction-info { display: flex; flex-direction: column; gap: 16px; }
+.interaction-group h4 {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--muted); margin-bottom: 8px;
+}
+.pill-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.pill {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 20px; padding: 4px 10px;
+  font-size: 12px; color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+}
 
-        .results-header h2 {
-            color: #333;
-        }
+/* ── Debug tab ───────────────────────────────────────────────────────────── */
+.debug-actions { margin-bottom: 12px; display: flex; gap: 8px; }
+.btn-sm {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; color: var(--muted); font-size: 12px; font-weight: 600;
+  padding: 6px 12px; cursor: pointer; transition: color var(--transition), border-color var(--transition);
+}
+.btn-sm:hover { color: var(--text); border-color: var(--accent); }
+.json-viewer {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: #a8c7fa;
+  line-height: 1.6;
+  overflow-x: auto;
+  max-height: 600px;
+  overflow-y: auto;
+  white-space: pre;
+}
 
-        .download-btn {
-            background: #10b981;
-            padding: 10px 20px;
-            font-size: 0.9rem;
-        }
+/* ── Empty states ────────────────────────────────────────────────────────── */
+.empty-state {
+  text-align: center; padding: 40px 20px;
+  color: var(--muted); font-size: 13px;
+}
+.empty-state .icon { font-size: 32px; margin-bottom: 10px; }
 
-        .download-btn:hover {
-            box-shadow: 0 5px 15px rgba(16, 185, 129, 0.4);
-        }
-
-        .meta-info {
-            background: #f9fafb;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-        }
-
-        .meta-info strong {
-            color: #667eea;
-        }
-
-        .sections {
-            margin-top: 20px;
-        }
-
-        .section-item {
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            overflow: hidden;
-            transition: border-color 0.3s;
-        }
-
-        .section-item:hover {
-            border-color: #667eea;
-        }
-
-        .section-header {
-            background: #f9fafb;
-            padding: 15px;
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            user-select: none;
-        }
-
-        .section-header:hover {
-            background: #f3f4f6;
-        }
-
-        .section-title {
-            font-weight: 600;
-            color: #333;
-        }
-
-        .section-type {
-            background: #667eea;
-            color: white;
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 0.85rem;
-            margin-left: 10px;
-        }
-
-        .section-content {
-            display: none;
-            padding: 20px;
-            background: white;
-        }
-
-        .section-content.active {
-            display: block;
-        }
-
-        .json-viewer {
-            background: #1e293b;
-            color: #e2e8f0;
-            padding: 15px;
-            border-radius: 8px;
-            overflow-x: auto;
-            font-family: 'Courier New', monospace;
-            font-size: 0.9rem;
-            line-height: 1.6;
-        }
-
-        .content-preview {
-            margin-bottom: 15px;
-        }
-
-        .content-preview h4 {
-            color: #667eea;
-            margin-bottom: 8px;
-        }
-
-        .content-preview p {
-            color: #666;
-            line-height: 1.6;
-        }
-    </style>
+/* ── Scrollbar ───────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>🌐 Universal Web Scraper</h1>
-            <p>Extract structured data from any website - Static & JS-rendered</p>
-        </div>
 
-        <div class="scraper-card">
-            <div class="input-group">
-                <input 
-                    type="text" 
-                    id="urlInput" 
-                    placeholder="Enter URL (e.g., https://news.ycombinator.com/)"
-                />
-                <button id="scrapeBtn" onclick="scrapeUrl()">Scrape</button>
-            </div>
+<header class="app-header">
+  <div class="header-badge">⚡ Universal Scraper v2</div>
+  <h1>🌐 Universal Web Scraper</h1>
+  <p>Extract structured data from any page — static HTML or JavaScript-rendered SPAs</p>
+</header>
 
-            <div class="loading" id="loading">
-                <div class="spinner"></div>
-                <p>Scraping in progress... This may take 10-30 seconds</p>
-            </div>
+<main class="container">
 
-            <div class="error" id="error"></div>
+  <!-- Input panel -->
+  <div class="input-panel">
+    <div class="input-row">
+      <input type="text" id="urlInput"
+        placeholder="https://en.wikipedia.org/wiki/Artificial_intelligence"
+        autocomplete="off" spellcheck="false">
+      <button id="scrapeBtn" onclick="runScrape()">Scrape →</button>
+    </div>
+    <div class="loading" id="loadingBar">
+      <div class="spinner"></div>
+      <span>Scraping in progress — static sites finish in ~2s, JS-rendered pages in 10–30s</span>
+    </div>
+  </div>
 
-            <div class="results" id="results">
-                <div class="results-header">
-                    <h2>Scraping Results</h2>
-                    <button class="download-btn" onclick="downloadJson()">⬇️ Download JSON</button>
-                </div>
+  <!-- Error display -->
+  <div class="error-box" id="errorBox"></div>
 
-                <div class="meta-info" id="metaInfo"></div>
+  <!-- Stats bar -->
+  <div class="stats-bar" id="statsBar">
+    <div class="stat-card">
+      <div class="stat-value" id="statStrategy">—</div>
+      <div class="stat-label">Strategy</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="statSections">—</div>
+      <div class="stat-label">Sections</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="statLinks">—</div>
+      <div class="stat-label">Links</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="statImages">—</div>
+      <div class="stat-label">Images</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="statTime">—</div>
+      <div class="stat-label">Total Time</div>
+    </div>
+  </div>
 
-                <h3 style="margin-bottom: 15px; color: #333;">Sections</h3>
-                <div class="sections" id="sections"></div>
-            </div>
-        </div>
+  <!-- Meta card -->
+  <div class="meta-card" id="metaCard">
+    <div class="meta-title" id="metaTitle"></div>
+    <div class="meta-url" id="metaUrl"></div>
+    <div class="meta-desc" id="metaDesc"></div>
+    <div class="meta-tags" id="metaTags"></div>
+  </div>
+
+  <!-- Results panel -->
+  <div class="results-panel" id="resultsPanel">
+
+    <!-- Tab bar -->
+    <div class="tab-bar" role="tablist">
+      <button class="tab-btn active" id="tab-content"   onclick="switchTab('content')"   role="tab">📄 Content</button>
+      <button class="tab-btn"        id="tab-links"     onclick="switchTab('links')"     role="tab">🔗 Links</button>
+      <button class="tab-btn"        id="tab-images"    onclick="switchTab('images')"    role="tab">🖼 Images</button>
+      <button class="tab-btn"        id="tab-tables"    onclick="switchTab('tables')"    role="tab">📊 Tables</button>
+      <button class="tab-btn"        id="tab-components" onclick="switchTab('components')" role="tab">🧩 Components</button>
+      <button class="tab-btn"        id="tab-interactions" onclick="switchTab('interactions')" role="tab">🖱 Interactions</button>
+      <button class="tab-btn"        id="tab-debug"     onclick="switchTab('debug')"     role="tab">🐛 Debug</button>
     </div>
 
-    <script>
-        let currentResult = null;
+    <!-- Content tab -->
+    <div class="tab-pane active" id="pane-content">
+      <div class="section-tree" id="sectionTree"></div>
+    </div>
 
-        async function scrapeUrl() {
-            const urlInput = document.getElementById('urlInput');
-            const url = urlInput.value.trim();
+    <!-- Links tab -->
+    <div class="tab-pane" id="pane-links">
+      <div class="links-list" id="linksList"></div>
+    </div>
 
-            if (!url) {
-                showError('Please enter a URL');
-                return;
-            }
+    <!-- Images tab -->
+    <div class="tab-pane" id="pane-images">
+      <div class="images-grid" id="imagesGrid"></div>
+    </div>
 
-            if (!url.startsWith('http://') && !url.startsWith('https://')) {
-                showError('URL must start with http:// or https://');
-                return;
-            }
+    <!-- Tables tab -->
+    <div class="tab-pane" id="pane-tables">
+      <div id="tablesContainer"></div>
+    </div>
 
-            // Reset UI
-            document.getElementById('error').classList.remove('active');
-            document.getElementById('results').classList.remove('active');
-            document.getElementById('loading').classList.add('active');
-            document.getElementById('scrapeBtn').disabled = true;
+    <!-- Components tab -->
+    <div class="tab-pane" id="pane-components">
+      <div id="componentsContainer"></div>
+    </div>
 
-            try {
-                const response = await fetch('/scrape', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ url: url })
-                });
+    <!-- Interactions tab -->
+    <div class="tab-pane" id="pane-interactions">
+      <div class="interaction-info" id="interactionsContainer"></div>
+    </div>
 
-                const data = await response.json();
-                currentResult = data;
+    <!-- Debug tab -->
+    <div class="tab-pane" id="pane-debug">
+      <div class="debug-actions">
+        <button class="btn-sm" onclick="downloadJson()">⬇ Download JSON</button>
+        <button class="btn-sm" onclick="copyJson()">📋 Copy JSON</button>
+      </div>
+      <div class="json-viewer" id="jsonViewer"></div>
+    </div>
 
-                if (data.result) {
-                    displayResults(data.result);
-                } else {
-                    showError('No result returned from server');
-                }
+  </div>
+</main>
 
-            } catch (error) {
-                showError('Failed to scrape: ' + error.message);
-            } finally {
-                document.getElementById('loading').classList.remove('active');
-                document.getElementById('scrapeBtn').disabled = false;
-            }
-        }
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+let _result = null;
 
-        function showError(message) {
-            const errorDiv = document.getElementById('error');
-            errorDiv.textContent = message;
-            errorDiv.classList.add('active');
-        }
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.getElementById('pane-' + name).classList.add('active');
+}
 
-        function displayResults(result) {
-            // Display meta info
-            const metaHtml = `
-                <strong>URL:</strong> ${result.url}<br>
-                <strong>Scraped At:</strong> ${result.scrapedAt}<br>
-                <strong>Title:</strong> ${result.meta.title || 'N/A'}<br>
-                <strong>Language:</strong> ${result.meta.language || 'N/A'}<br>
-                <strong>Sections Found:</strong> ${result.sections.length}<br>
-                <strong>Interactions:</strong> Clicks: ${result.interactions.clicks.length}, Scrolls: ${result.interactions.scrolls}, Pages: ${result.interactions.pages.length}
-            `;
-            document.getElementById('metaInfo').innerHTML = metaHtml;
+// ── Scrape trigger ────────────────────────────────────────────────────────────
+async function runScrape() {
+  const url = document.getElementById('urlInput').value.trim();
+  if (!url) { showError('Please enter a URL'); return; }
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    showError('URL must start with http:// or https://');
+    return;
+  }
 
-            // Display sections
-            const sectionsContainer = document.getElementById('sections');
-            sectionsContainer.innerHTML = '';
+  hideError();
+  document.getElementById('resultsPanel').classList.remove('visible');
+  document.getElementById('statsBar').classList.remove('visible');
+  document.getElementById('metaCard').classList.remove('visible');
+  document.getElementById('scrapeBtn').disabled = true;
+  document.getElementById('loadingBar').classList.add('active');
 
-            result.sections.forEach((section, index) => {
-                const sectionDiv = document.createElement('div');
-                sectionDiv.className = 'section-item';
-                sectionDiv.innerHTML = `
-                    <div class="section-header" onclick="toggleSection(${index})">
-                        <div>
-                            <span class="section-title">${section.label}</span>
-                            <span class="section-type">${section.type}</span>
-                        </div>
-                        <span id="toggle-${index}">▼</span>
-                    </div>
-                    <div class="section-content" id="section-${index}">
-                        <div class="content-preview">
-                            <h4>Text Preview</h4>
-                            <p>${section.content.text.substring(0, 300)}${section.content.text.length > 300 ? '...' : ''}</p>
-                        </div>
-                        ${section.content.links.length > 0 ? `
-                            <div class="content-preview">
-                                <h4>Links (${section.content.links.length})</h4>
-                                <p>${section.content.links.slice(0, 3).map(l => l.text).join(', ')}...</p>
-                            </div>
-                        ` : ''}
-                        <h4 style="color: #667eea; margin-bottom: 8px;">Full JSON</h4>
-                        <div class="json-viewer">${JSON.stringify(section, null, 2)}</div>
-                    </div>
-                `;
-                sectionsContainer.appendChild(sectionDiv);
-            });
+  try {
+    const resp = await fetch('/scrape', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    const data = await resp.json();
+    _result = data;
 
-            document.getElementById('results').classList.add('active');
-        }
+    if (!data.result) { showError('No result returned from server'); return; }
 
-        function toggleSection(index) {
-            const content = document.getElementById(`section-${index}`);
-            const toggle = document.getElementById(`toggle-${index}`);
-            
-            if (content.classList.contains('active')) {
-                content.classList.remove('active');
-                toggle.textContent = '▼';
-            } else {
-                content.classList.add('active');
-                toggle.textContent = '▲';
-            }
-        }
+    const r = data.result;
 
-        function downloadJson() {
-            if (!currentResult) return;
+    // Show scrape-level errors
+    if (Array.isArray(r.errors) && r.errors.length > 0) {
+      const msgs = r.errors.map(e => `[${e.phase}] ${e.message}`).join('<br>');
+      showError(msgs, r.errors.some(e => !e.recoverable));
+    }
 
-            const dataStr = JSON.stringify(currentResult, null, 2);
-            const dataBlob = new Blob([dataStr], { type: 'application/json' });
-            const url = URL.createObjectURL(dataBlob);
-            
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `scrape-${Date.now()}.json`;
-            link.click();
-            
-            URL.revokeObjectURL(url);
-        }
+    renderStats(r);
+    renderMeta(r);
+    renderContent(r);
+    renderLinks(r);
+    renderImages(r);
+    renderTables(r);
+    renderComponents(r);
+    renderInteractions(r);
+    renderDebug(r);
 
-        // Allow Enter key to trigger scraping
-        document.getElementById('urlInput').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                scrapeUrl();
-            }
-        });
-    </script>
+    document.getElementById('resultsPanel').classList.add('visible');
+    switchTab('content');
+  } catch (err) {
+    showError('Network error: ' + err.message);
+  } finally {
+    document.getElementById('loadingBar').classList.remove('active');
+    document.getElementById('scrapeBtn').disabled = false;
+  }
+}
+
+// ── Error helpers ─────────────────────────────────────────────────────────────
+function showError(msg, fatal = false) {
+  const box = document.getElementById('errorBox');
+  box.innerHTML = `<strong>${fatal ? '⛔ Error' : '⚠ Warning'}</strong>${msg}`;
+  box.classList.add('active');
+}
+function hideError() {
+  document.getElementById('errorBox').classList.remove('active');
+  document.getElementById('errorBox').innerHTML = '';
+}
+
+// ── Stats bar ─────────────────────────────────────────────────────────────────
+function renderStats(r) {
+  const stats = r.stats || {};
+  const strategy = (r.meta || {}).strategy || 'static';
+  const strategyClass = strategy.includes('+') ? 'strategy-static-js' :
+    strategy === 'js' ? 'strategy-js' : 'strategy-static';
+
+  document.getElementById('statStrategy').innerHTML =
+    `<span class="strategy-badge ${strategyClass}">${strategy.toUpperCase()}</span>`;
+  document.getElementById('statSections').textContent = (r.sections || []).length;
+  document.getElementById('statLinks').textContent = stats.linksFound ?? 0;
+  document.getElementById('statImages').textContent = stats.imagesFound ?? 0;
+  document.getElementById('statTime').textContent =
+    stats.totalDurationMs ? `${Math.round(stats.totalDurationMs)}ms` : '—';
+  document.getElementById('statsBar').classList.add('visible');
+}
+
+// ── Meta card ─────────────────────────────────────────────────────────────────
+function renderMeta(r) {
+  const meta = r.meta || {};
+  document.getElementById('metaTitle').textContent = meta.title || '(no title)';
+  document.getElementById('metaUrl').textContent = r.url || '';
+  document.getElementById('metaDesc').textContent = meta.description || '';
+
+  const tags = document.getElementById('metaTags');
+  tags.innerHTML = '';
+  if (meta.language) tags.innerHTML += `<span class="tag">🌐 ${meta.language}</span>`;
+  if (meta.canonical) tags.innerHTML += `<span class="tag">🔗 canonical</span>`;
+  if (meta.strategy) tags.innerHTML += `<span class="tag">⚡ ${meta.strategy}</span>`;
+
+  document.getElementById('metaCard').classList.add('visible');
+}
+
+// ── Content tree ──────────────────────────────────────────────────────────────
+function renderContent(r) {
+  const sections = r.sections || [];
+  const tree = document.getElementById('sectionTree');
+  tree.innerHTML = '';
+
+  if (!sections.length) {
+    tree.innerHTML = '<div class="empty-state"><div class="icon">📭</div>No content sections extracted</div>';
+    return;
+  }
+
+  // Build parent→children map
+  const byId = {};
+  sections.forEach(s => { byId[s.id] = s; });
+  const children = {};
+  const roots = [];
+
+  sections.forEach(s => {
+    const pid = s.parentId;
+    if (pid && byId[pid]) {
+      if (!children[pid]) children[pid] = [];
+      children[pid].push(s);
+    } else {
+      roots.push(s);
+    }
+  });
+
+  roots.forEach(s => tree.appendChild(buildNode(s, children, 0)));
+}
+
+function buildNode(section, childMap, depth) {
+  const kids = childMap[section.id] || [];
+  const hasKids = kids.length > 0;
+  const text = section.content?.text || '';
+  const preview = text.replace(/\s+/g, ' ').substring(0, 80);
+  const level = section.level || 1;
+
+  const node = document.createElement('div');
+  node.className = 'section-node';
+  node.style.marginLeft = depth > 0 ? '0' : '0';
+
+  node.innerHTML = `
+    <div class="section-header-row" onclick="toggleSection(this)">
+      <span class="section-toggle ${hasKids ? '' : 'no-children'}">${hasKids ? '▶' : ' '}</span>
+      <span class="section-level-badge">H${level}</span>
+      <span class="section-label" title="${esc(section.label)}">${esc(section.label)}</span>
+      <span class="section-type">${esc(section.type || 'section')}</span>
+    </div>
+    ${preview ? `<div class="section-text-preview">${esc(preview)}${text.length > 80 ? '…' : ''}</div>` : ''}
+    <div class="section-body">
+      <div class="section-text">${esc(text) || '<em style="color:var(--muted)">No text content</em>'}</div>
+      ${hasKids ? '<div class="section-children"></div>' : ''}
+    </div>`;
+
+  if (hasKids) {
+    const childContainer = node.querySelector('.section-children');
+    kids.forEach(k => childContainer.appendChild(buildNode(k, childMap, depth + 1)));
+  }
+  return node;
+}
+
+function toggleSection(header) {
+  const body = header.closest('.section-node').querySelector('.section-body');
+  const toggle = header.querySelector('.section-toggle');
+  const isOpen = body.classList.toggle('open');
+  if (toggle && toggle.textContent.trim() !== ' ') {
+    toggle.classList.toggle('open', isOpen);
+  }
+}
+
+// ── Links ─────────────────────────────────────────────────────────────────────
+function renderLinks(r) {
+  const resources = r.resources || {};
+  const links = resources.links || [];
+  const list = document.getElementById('linksList');
+  list.innerHTML = '';
+
+  if (!links.length) {
+    list.innerHTML = '<div class="empty-state"><div class="icon">🔗</div>No links found</div>';
+    return;
+  }
+  links.forEach(lk => {
+    list.innerHTML += `
+      <div class="link-row">
+        <span class="link-text">${esc(lk.text || '(no text)')}</span>
+        <a class="link-href" href="${esc(lk.href)}" target="_blank" rel="noopener">${esc(lk.href)}</a>
+      </div>`;
+  });
+}
+
+// ── Images ────────────────────────────────────────────────────────────────────
+function renderImages(r) {
+  const resources = r.resources || {};
+  const images = resources.images || [];
+  const grid = document.getElementById('imagesGrid');
+  grid.innerHTML = '';
+
+  if (!images.length) {
+    grid.innerHTML = '<div class="empty-state"><div class="icon">🖼</div>No images found</div>';
+    return;
+  }
+  images.forEach(img => {
+    grid.innerHTML += `
+      <div class="image-card">
+        <img src="${esc(img.src)}" alt="${esc(img.alt)}" loading="lazy"
+          onerror="this.style.display='none'">
+        <div class="image-alt">${esc(img.alt) || '(no alt)'}</div>
+      </div>`;
+  });
+}
+
+// ── Tables ────────────────────────────────────────────────────────────────────
+function renderTables(r) {
+  const resources = r.resources || {};
+  const tables = resources.tables || [];
+  const container = document.getElementById('tablesContainer');
+  container.innerHTML = '';
+
+  if (!tables.length) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">📊</div>No tables found</div>';
+    return;
+  }
+  tables.forEach((tbl, i) => {
+    const rows = tbl.rows || [];
+    if (!rows.length) return;
+
+    const header = rows[0];
+    const body = rows.slice(1);
+
+    container.innerHTML += `
+      <div class="table-wrapper">
+        ${tbl.caption ? `<div class="table-caption">${esc(tbl.caption)}</div>` : ''}
+        <table>
+          <thead><tr>${header.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead>
+          <tbody>${body.map(row => `<tr>${row.map(cell => `<td>${esc(cell)}</td>`).join('')}</tr>`).join('')}</tbody>
+        </table>
+      </div>`;
+  });
+}
+
+// ── Components ────────────────────────────────────────────────────────────────
+function renderComponents(r) {
+  const comps = r.components || {};
+  const container = document.getElementById('componentsContainer');
+  container.innerHTML = '';
+
+  let any = false;
+
+  const nav = comps.navigation || [];
+  if (nav.length) {
+    any = true;
+    container.innerHTML += `<div class="component-section">
+      <h3>Navigation (${nav.length})</h3>
+      ${nav.map(n => `<div class="comp-item">${n.label ? `<strong>${esc(n.label)}</strong> — ` : ''}${(n.links||[]).slice(0,5).map(l => esc(l.text)).join(' · ')}${(n.links||[]).length > 5 ? ` · +${(n.links||[]).length-5} more` : ''}</div>`).join('')}
+    </div>`;
+  }
+
+  const toc = comps.tableOfContents || [];
+  if (toc.length) {
+    any = true;
+    container.innerHTML += `<div class="component-section">
+      <h3>Table of Contents</h3>
+      ${toc.map(t => `<div class="comp-item">${(t.items||[]).slice(0,8).map(i => esc(i)).join(' · ')}</div>`).join('')}
+    </div>`;
+  }
+
+  const langSel = comps.languageSelector || [];
+  if (langSel.length) {
+    any = true;
+    const all = langSel.flatMap(l => l.languages || []);
+    container.innerHTML += `<div class="component-section">
+      <h3>Language Selector (${all.length} languages — excluded from article content)</h3>
+      <div class="lang-chips">${all.slice(0,60).map(l => `<span class="lang-chip">${esc(l)}</span>`).join('')}${all.length > 60 ? `<span class="lang-chip">+${all.length-60}</span>` : ''}</div>
+    </div>`;
+  }
+
+  const footer = comps.footer || [];
+  if (footer.length) {
+    any = true;
+    container.innerHTML += `<div class="component-section">
+      <h3>Footer</h3>
+      ${footer.map(f => `<div class="comp-item">${esc(f.text||'')}</div>`).join('')}
+    </div>`;
+  }
+
+  const sidebar = comps.sidebar || [];
+  if (sidebar.length) {
+    any = true;
+    container.innerHTML += `<div class="component-section">
+      <h3>Sidebar</h3>
+      ${sidebar.map(s => `<div class="comp-item">${esc(s.text||'')}</div>`).join('')}
+    </div>`;
+  }
+
+  if (!any) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">🧩</div>No page components detected</div>';
+  }
+}
+
+// ── Interactions ──────────────────────────────────────────────────────────────
+function renderInteractions(r) {
+  const ix = r.interactions || {};
+  const container = document.getElementById('interactionsContainer');
+  const pages = ix.pages || [];
+  const clicks = ix.clicks || [];
+  const scrolls = ix.scrolls || 0;
+
+  container.innerHTML = `
+    <div class="interaction-group">
+      <h4>Pages Visited (${pages.length})</h4>
+      <div class="pill-list">${pages.length ? pages.map(p => `<span class="pill">${esc(p)}</span>`).join('') : '<span style="color:var(--muted)">—</span>'}</div>
+    </div>
+    <div class="interaction-group">
+      <h4>Clicks (${clicks.length})</h4>
+      <div class="pill-list">${clicks.length ? clicks.map(c => `<span class="pill">${esc(c)}</span>`).join('') : '<span style="color:var(--muted)">—</span>'}</div>
+    </div>
+    <div class="interaction-group">
+      <h4>Scroll Attempts</h4>
+      <span class="pill">${scrolls}</span>
+    </div>`;
+}
+
+// ── Debug ─────────────────────────────────────────────────────────────────────
+function renderDebug(r) {
+  document.getElementById('jsonViewer').textContent = JSON.stringify(_result, null, 2);
+}
+
+function downloadJson() {
+  if (!_result) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(_result, null, 2)], {type:'application/json'}));
+  a.download = 'scrape-result.json';
+  a.click();
+}
+
+function copyJson() {
+  if (!_result) return;
+  navigator.clipboard.writeText(JSON.stringify(_result, null, 2))
+    .then(() => alert('Copied to clipboard!'));
+}
+
+// ── Escape helper ─────────────────────────────────────────────────────────────
+function esc(s) {
+  if (!s) return '';
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Enter key support ─────────────────────────────────────────────────────────
+document.getElementById('urlInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') runScrape();
+});
+</script>
 </body>
 </html>

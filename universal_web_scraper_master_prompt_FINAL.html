@@ -1,0 +1,1667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Universal Web Scraper — Master Agent Prompt</title>
+<style>
+  :root {
+    --bg: #0b0f1a;
+    --surface: #131929;
+    --surface2: #1a2235;
+    --border: #1e2d47;
+    --accent: #4f8ef7;
+    --accent2: #7c3aed;
+    --green: #22c55e;
+    --amber: #f59e0b;
+    --red: #ef4444;
+    --text: #e2e8f0;
+    --muted: #8899b4;
+    --code-bg: #0d1117;
+    --tag-bg: #1e2d47;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+    padding: 0 0 80px;
+  }
+
+  /* HEADER */
+  .hero {
+    background: linear-gradient(135deg, #0f1a2e 0%, #131929 60%, #1a1040 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 56px 40px 48px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -60px; right: -60px;
+    width: 320px; height: 320px;
+    background: radial-gradient(circle, rgba(79,142,247,0.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(79,142,247,0.12);
+    border: 1px solid rgba(79,142,247,0.3);
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 4px 12px;
+    border-radius: 20px;
+    margin-bottom: 20px;
+  }
+  .hero h1 {
+    font-size: 36px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    line-height: 1.2;
+    background: linear-gradient(135deg, #e2e8f0 0%, #4f8ef7 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 12px;
+  }
+  .hero p {
+    color: var(--muted);
+    font-size: 16px;
+    max-width: 680px;
+    margin-bottom: 28px;
+  }
+  .hero-meta {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .hero-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .hero-stat-value {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .hero-stat-label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  /* LAYOUT */
+  .layout {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    max-width: 1200px;
+    margin: 0 auto;
+    gap: 0;
+  }
+
+  /* SIDEBAR NAV */
+  .sidebar {
+    padding: 32px 20px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    border-right: 1px solid var(--border);
+  }
+  .sidebar-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+    padding: 0 8px;
+  }
+  .sidebar nav { display: flex; flex-direction: column; gap: 2px; margin-bottom: 28px; }
+  .sidebar a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 13px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .sidebar a:hover { color: var(--text); background: var(--surface2); }
+  .sidebar a .nav-num {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 18px;
+  }
+
+  /* MAIN CONTENT */
+  .main { padding: 40px 48px; }
+
+  /* SECTION STYLES */
+  .section {
+    margin-bottom: 56px;
+    scroll-margin-top: 32px;
+  }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-num {
+    width: 32px; height: 32px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: white;
+    flex-shrink: 0;
+  }
+  .section h2 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .section-tag {
+    margin-left: auto;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 20px;
+    flex-shrink: 0;
+  }
+  .tag-critical { background: rgba(239,68,68,0.15); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
+  .tag-core { background: rgba(79,142,247,0.12); color: var(--accent); border: 1px solid rgba(79,142,247,0.3); }
+  .tag-arch { background: rgba(124,58,237,0.15); color: #a78bfa; border: 1px solid rgba(124,58,237,0.3); }
+  .tag-verify { background: rgba(34,197,94,0.12); color: var(--green); border: 1px solid rgba(34,197,94,0.3); }
+  .tag-docs { background: rgba(245,158,11,0.12); color: var(--amber); border: 1px solid rgba(245,158,11,0.3); }
+
+  /* CONTENT ELEMENTS */
+  p { color: #c8d6e8; margin-bottom: 14px; }
+  p:last-child { margin-bottom: 0; }
+
+  .rule-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 16px;
+  }
+  .rule-box.critical { border-left-color: var(--red); }
+  .rule-box.success { border-left-color: var(--green); }
+  .rule-box.warning { border-left-color: var(--amber); }
+
+  .rule-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+  .rule-title.critical { color: var(--red); }
+  .rule-title.success { color: var(--green); }
+  .rule-title.warning { color: var(--amber); }
+
+  pre, code {
+    font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.6;
+    margin-bottom: 16px;
+    color: #a8c7fa;
+  }
+  code {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    color: #a8c7fa;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+  }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+  }
+  .card h4 {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .card ul li {
+    font-size: 13px;
+    color: var(--muted);
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    line-height: 1.5;
+  }
+  .card ul li::before {
+    content: '→';
+    color: var(--accent);
+    font-size: 11px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .phase-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .phase-item {
+    display: grid;
+    grid-template-columns: 28px 1fr auto;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+  }
+  .phase-num {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent);
+    text-align: right;
+  }
+  .phase-name {
+    font-size: 13px;
+    color: var(--text);
+    font-weight: 500;
+  }
+  .phase-badge {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 2px 8px;
+    border-radius: 10px;
+  }
+  .pb-must { background: rgba(239,68,68,0.15); color: var(--red); }
+  .pb-core { background: rgba(79,142,247,0.12); color: var(--accent); }
+  .pb-later { background: rgba(100,116,139,0.15); color: #64748b; }
+
+  .pipeline {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin-bottom: 16px;
+  }
+  .pipeline-step {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+  }
+  .pipeline-step:not(:last-child) {
+    border-bottom: 1px dashed var(--border);
+    margin-bottom: 0;
+  }
+  .step-num {
+    width: 24px; height: 24px;
+    background: rgba(79,142,247,0.15);
+    border: 1px solid rgba(79,142,247,0.3);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+  .step-name { font-size: 13px; color: var(--text); font-weight: 500; flex: 1; }
+  .step-desc { font-size: 12px; color: var(--muted); }
+
+  .checkpoint {
+    background: rgba(34,197,94,0.06);
+    border: 1px solid rgba(34,197,94,0.2);
+    border-radius: 10px;
+    padding: 20px;
+    margin: 24px 0;
+  }
+  .checkpoint-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--green);
+    margin-bottom: 12px;
+  }
+  .test-url {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+  .test-url-num {
+    font-weight: 700;
+    color: var(--accent);
+    font-size: 12px;
+  }
+  .test-url-addr { color: #7dd3fc; font-family: monospace; }
+  .test-url-expect { color: var(--muted); font-size: 12px; text-align: right; }
+
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 40px 0;
+  }
+
+  .warning-box {
+    background: rgba(245,158,11,0.06);
+    border: 1px solid rgba(245,158,11,0.25);
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: #fbbf24;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .file-tree {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    font-family: monospace;
+    font-size: 13px;
+    color: #a8c7fa;
+    line-height: 2;
+    margin-bottom: 16px;
+  }
+  .ft-dir { color: #7dd3fc; }
+  .ft-file { color: #a8c7fa; }
+  .ft-comment { color: #475569; }
+
+  h3 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 20px 0 10px;
+  }
+  h4 {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 16px 0 8px;
+  }
+
+  .copy-prompt {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: white;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    margin-bottom: 20px;
+    text-decoration: none;
+  }
+
+  @media print {
+    .sidebar { display: none; }
+    .layout { grid-template-columns: 1fr; }
+    .hero { padding: 32px; }
+    body { background: white; color: black; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-badge">⚡ Coding Agent Master Prompt</div>
+  <h1>Universal Web Scraper<br>Complete Rebuild Prompt</h1>
+  <p>A structured, phase-ordered instruction set for a coding agent to audit, redesign, and rebuild the Universal Web Scraper from broken MVP to production-quality backend engine — without losing what already works.</p>
+  <div class="hero-meta">
+    <div class="hero-stat"><span class="hero-stat-value">14</span><span class="hero-stat-label">Fix Targets</span></div>
+    <div class="hero-stat"><span class="hero-stat-value">22</span><span class="hero-stat-label">Pipeline Steps</span></div>
+    <div class="hero-stat"><span class="hero-stat-value">4</span><span class="hero-stat-label">Verification URLs</span></div>
+    <div class="hero-stat"><span class="hero-stat-value">0</span><span class="hero-stat-label">Rewrites from scratch</span></div>
+  </div>
+</div>
+
+<!-- LAYOUT -->
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-label">Sections</div>
+    <nav>
+      <a href="#s-role"><span class="nav-num">00</span>Role & Mission</a>
+      <a href="#s-principles"><span class="nav-num">01</span>Principles</a>
+      <a href="#s-audit"><span class="nav-num">02</span>Audit First</a>
+      <a href="#s-pipeline"><span class="nav-num">03</span>Target Pipeline</a>
+      <a href="#s-phases"><span class="nav-num">04</span>Phase Order</a>
+      <a href="#s-url"><span class="nav-num">05</span>URL & Security</a>
+      <a href="#s-fetch"><span class="nav-num">06</span>Fetch Manager</a>
+      <a href="#s-decision"><span class="nav-num">07</span>Static vs JS</a>
+      <a href="#s-browser"><span class="nav-num">08</span>Browser Engine</a>
+      <a href="#s-pageanalysis"><span class="nav-num">09</span>Page Analysis</a>
+      <a href="#s-ownership"><span class="nav-num">10</span>DOM Ownership</a>
+      <a href="#s-extraction"><span class="nav-num">11</span>Extraction</a>
+      <a href="#s-dedup"><span class="nav-num">12</span>Deduplication</a>
+      <a href="#s-interactions"><span class="nav-num">13</span>Interactions</a>
+      <a href="#s-datamodel"><span class="nav-num">14</span>Data Model</a>
+      <a href="#s-errors"><span class="nav-num">15</span>Error Model</a>
+      <a href="#s-frontend"><span class="nav-num">16</span>Frontend</a>
+      <a href="#s-arch"><span class="nav-num">17</span>Architecture</a>
+      <a href="#s-config"><span class="nav-num">18</span>Config & Limits</a>
+      <a href="#s-docs"><span class="nav-num">19</span>Docs & Files</a>
+      <a href="#s-verify"><span class="nav-num">20</span>Verification</a>
+      <a href="#s-donot"><span class="nav-num">21</span>Do NOT Build</a>
+      <a href="#s-acceptance"><span class="nav-num">22</span>Acceptance</a>
+    </nav>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- 00 ROLE -->
+    <section class="section" id="s-role">
+      <div class="section-header">
+        <div class="section-num">0</div>
+        <h2>Role & Mission</h2>
+        <span class="section-tag tag-critical">Read First</span>
+      </div>
+
+      <div class="rule-box critical">
+        <div class="rule-title critical">⚠ Non-Negotiable Starting Instruction</div>
+        <p>You are a senior Python backend architect, web-scraping engineer, browser-automation engineer, data-model designer, security engineer, and test engineer. Your mission is to <strong>upgrade the existing Universal Web Scraper repository</strong> — not rewrite it from scratch. Audit everything before touching anything. Keep the project runnable after every phase. Make the smallest correct change that achieves each goal.</p>
+      </div>
+
+      <p>The current scraper has real problems: Wikipedia shows navigation chrome instead of article content, sections overlap and duplicate each other, the language selector pollutes article text, sync Playwright blocks FastAPI's event loop, and the scrollHeight evaluator crashes with a null reference. These must all be fixed through proper architecture — not through hardcoded site-specific selectors.</p>
+
+      <div class="rule-box">
+        <div class="rule-title">Core Philosophy</div>
+        <p><strong>Understand first → Extract second → Organize third → Interact fourth → Normalize/Deduplicate fifth → Present last.</strong> This order is intentional and must be preserved throughout the implementation.</p>
+      </div>
+    </section>
+
+    <!-- 01 PRINCIPLES -->
+    <section class="section" id="s-principles">
+      <div class="section-header">
+        <div class="section-num">1</div>
+        <h2>Non-Negotiable Engineering Principles</h2>
+        <span class="section-tag tag-critical">Always Active</span>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h4>✅ Always Do</h4>
+          <ul>
+            <li>Read every file before touching any file</li>
+            <li>Keep the app runnable after each stable phase</li>
+            <li>Give every extracted piece of content one canonical owner</li>
+            <li>Preserve successful data when optional steps fail</li>
+            <li>Use deterministic, testable algorithms</li>
+            <li>Separate page components from primary content</li>
+            <li>Make all link hrefs absolute URLs</li>
+            <li>Wrap every browser evaluate() call in null guards</li>
+            <li>Use async_playwright throughout — never sync_playwright in FastAPI</li>
+            <li>Pin all dependency versions in requirements.txt</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>❌ Never Do</h4>
+          <ul>
+            <li>Create sections purely because a DOM element exists</li>
+            <li>Let parent containers include full recursive copies of child sections</li>
+            <li>Use website-specific hardcoded selectors as the primary solution</li>
+            <li>Return "No content extracted" as a normal section</li>
+            <li>Use sync_playwright inside FastAPI endpoints</li>
+            <li>Allow unbounded loops, crawling, or response sizes</li>
+            <li>Swallow errors silently</li>
+            <li>Let later failures erase earlier successful data</li>
+            <li>Rewrite working extraction logic before understanding its callers</li>
+            <li>Add new dependencies without explicit justification</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 02 AUDIT -->
+    <section class="section" id="s-audit">
+      <div class="section-header">
+        <div class="section-num">2</div>
+        <h2>Audit Before Touching Anything</h2>
+        <span class="section-tag tag-core">Phase 0</span>
+      </div>
+
+      <div class="rule-box warning">
+        <div class="rule-title warning">⚠ Mandatory First Step</div>
+        <p>Before writing a single line of new code, read and map every source file completely. Build a full picture of what currently exists, what works, what is broken, and what each part calls.</p>
+      </div>
+
+      <p>Read and map the following, in order:</p>
+
+      <div class="grid-2">
+        <div class="card">
+          <h4>Files to Read</h4>
+          <ul>
+            <li><code>app/main.py</code> — routes, request models, orchestration</li>
+            <li><code>app/scraper/static.py</code> — static fetch and parse logic</li>
+            <li><code>app/scraper/js.py</code> — Playwright browser logic</li>
+            <li><code>app/frontend/templates/index.html</code> — frontend expectations</li>
+            <li><code>requirements.txt</code> — current dependencies</li>
+            <li><code>capabilities.json</code> — claimed capabilities</li>
+            <li><code>design_notes.md</code> — documented decisions</li>
+            <li><code>README.md</code> — setup and usage instructions</li>
+            <li><code>run.sh</code> — startup script</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>Map These Questions</h4>
+          <ul>
+            <li>Which extraction functions currently work correctly?</li>
+            <li>Where exactly does the scrollHeight crash occur?</li>
+            <li>Where is sync_playwright used vs async?</li>
+            <li>How does should_use_js() make its decision?</li>
+            <li>How are sections created and what triggers duplication?</li>
+            <li>What does the frontend expect in the JSON response?</li>
+            <li>Which imports are stale or unused?</li>
+            <li>Are there any unclosed browser contexts?</li>
+            <li>What magic numbers exist and where are they?</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="rule-box success">
+        <div class="rule-title success">✓ Preserve What Works</div>
+        <p>The current scraper already correctly extracts links with absolute URLs, images with src/alt, lists, and tables in some cases. Identify these working extraction functions and <strong>wrap them into the new pipeline rather than replacing them</strong>. Do not delete working code before understanding all callers.</p>
+      </div>
+    </section>
+
+    <!-- 03 PIPELINE -->
+    <section class="section" id="s-pipeline">
+      <div class="section-header">
+        <div class="section-num">3</div>
+        <h2>Target End-to-End Pipeline</h2>
+        <span class="section-tag tag-arch">Architecture</span>
+      </div>
+
+      <p>This is the order the scraper must execute every request. This order is intentional — do not reorder steps without understanding the consequences.</p>
+
+      <div class="pipeline">
+        <div class="pipeline-step"><div class="step-num">1</div><div class="step-name">URL Validation & Normalization</div><div class="step-desc">Security, scheme check, SSRF block</div></div>
+        <div class="pipeline-step"><div class="step-num">2</div><div class="step-name">Static Fetch</div><div class="step-desc">httpx with headers, timeouts, encoding</div></div>
+        <div class="pipeline-step"><div class="step-num">3</div><div class="step-name">Static Quality Analysis</div><div class="step-desc">Is static content sufficient? STATIC_COMPLETE / STATIC_PARTIAL / STATIC_EMPTY / JS_REQUIRED</div></div>
+        <div class="pipeline-step"><div class="step-num">4</div><div class="step-name">Browser Render (if needed)</div><div class="step-desc">async Playwright, isolated context, null-safe</div></div>
+        <div class="pipeline-step"><div class="step-num">5</div><div class="step-name">Normalized Page Source</div><div class="step-desc">Single source object regardless of static or JS path</div></div>
+        <div class="pipeline-step"><div class="step-num">6</div><div class="step-name">Page Structure Analysis</div><div class="step-desc">Build internal page map — identify regions</div></div>
+        <div class="pipeline-step"><div class="step-num">7</div><div class="step-name">Region Detection</div><div class="step-desc">HEADER / NAV / SIDEBAR / MAIN / ASIDE / FOOTER / TOC / TOOLS</div></div>
+        <div class="pipeline-step"><div class="step-num">8</div><div class="step-name">Primary Content Scoring</div><div class="step-desc">Score candidates using text density, paragraph count, content-to-link ratio</div></div>
+        <div class="pipeline-step"><div class="step-num">9</div><div class="step-name">Components vs Content Separation</div><div class="step-desc">Page chrome stays separate from article content</div></div>
+        <div class="pipeline-step"><div class="step-num">10</div><div class="step-name">DOM Ownership Enforcement</div><div class="step-desc">One canonical owner per content node — no duplicates</div></div>
+        <div class="pipeline-step"><div class="step-num">11</div><div class="step-name">Hierarchical Section Extraction</div><div class="step-desc">H1→H2→H3 heading hierarchy drives section tree</div></div>
+        <div class="pipeline-step"><div class="step-num">12</div><div class="step-name">Content Extraction</div><div class="step-desc">text, headings, links, images, lists, tables per section</div></div>
+        <div class="pipeline-step"><div class="step-num">13</div><div class="step-name">Initial Result Snapshot</div><div class="step-desc">Save successful extraction before any interactions</div></div>
+        <div class="pipeline-step"><div class="step-num">14</div><div class="step-name">Interaction Discovery</div><div class="step-desc">Find tabs, load-more buttons, pagination, infinite scroll</div></div>
+        <div class="pipeline-step"><div class="step-num">15</div><div class="step-name">Bounded Click/Scroll/Pagination</div><div class="step-desc">Execute within hard limits — never unbounded</div></div>
+        <div class="pipeline-step"><div class="step-num">16</div><div class="step-name">Incremental Extraction</div><div class="step-desc">Merge new content only — do not re-extract already-owned content</div></div>
+        <div class="pipeline-step"><div class="step-num">17</div><div class="step-name">Deduplication</div><div class="step-desc">Remove duplicate sections using fingerprints before final result</div></div>
+        <div class="pipeline-step"><div class="step-num">18</div><div class="step-name">Normalization</div><div class="step-desc">Absolute URLs, clean text, consistent types</div></div>
+        <div class="pipeline-step"><div class="step-num">19</div><div class="step-name">Validation</div><div class="step-desc">All required fields present and correctly typed</div></div>
+        <div class="pipeline-step"><div class="step-num">20</div><div class="step-name">Statistics + Warnings + Errors</div><div class="step-desc">Structured error objects, strategy used, counts</div></div>
+        <div class="pipeline-step"><div class="step-num">21</div><div class="step-name">Final Structured JSON</div><div class="step-desc">Assignment-compliant schema, validated</div></div>
+        <div class="pipeline-step"><div class="step-num">22</div><div class="step-name">Frontend Viewer</div><div class="step-desc">Hierarchical reader, tabbed resources, debug area</div></div>
+      </div>
+    </section>
+
+    <!-- 04 PHASES -->
+    <section class="section" id="s-phases">
+      <div class="section-header">
+        <div class="section-num">4</div>
+        <h2>Implementation Phase Order</h2>
+        <span class="section-tag tag-core">Execution Order</span>
+      </div>
+
+      <div class="rule-box critical">
+        <div class="rule-title critical">⚠ Do Not Skip Ahead</div>
+        <p>Do not implement interaction features (scroll, pagination, click flows) until Phases 1–10 are complete and verified. Interactions built on a broken extraction layer will produce worse output than no interactions at all.</p>
+      </div>
+
+      <div class="phase-list">
+        <div class="phase-item"><div class="phase-num">P0</div><div class="phase-name">Repository audit — read all files, map all responsibilities</div><span class="phase-badge pb-must">Must First</span></div>
+        <div class="phase-item"><div class="phase-num">P1</div><div class="phase-name">URL manager — validation, normalization, SSRF/security</div><span class="phase-badge pb-must">Must</span></div>
+        <div class="phase-item"><div class="phase-num">P2</div><div class="phase-name">Fetch manager — async httpx, headers, timeouts, encoding, size limits</div><span class="phase-badge pb-must">Must</span></div>
+        <div class="phase-item"><div class="phase-num">P3</div><div class="phase-name">Static quality analyzer — STATIC_COMPLETE / PARTIAL / EMPTY / JS_REQUIRED states</div><span class="phase-badge pb-must">Must</span></div>
+        <div class="phase-item"><div class="phase-num">P4</div><div class="phase-name">Page structure analysis — build internal page map before any section creation</div><span class="phase-badge pb-must">Must</span></div>
+        <div class="phase-item"><div class="phase-num">P5</div><div class="phase-name">Region detection — HEADER / NAV / SIDEBAR / MAIN / TOC / FOOTER using multi-signal scoring</div><span class="phase-badge pb-must">Must</span></div>
+        <div class="phase-item"><div class="phase-num">P6</div><div class="phase-name">Primary content scoring — score candidates, choose high-confidence root</div><span class="phase-badge pb-must">Must</span></div>
+        <div class="phase-item"><div class="phase-num">P7</div><div class="phase-name">Components vs content separation — page chrome to its own bucket</div><span class="phase-badge pb-must">Must</span></div>
+        <div class="phase-item"><div class="phase-num">P8</div><div class="phase-name">DOM ownership enforcement — one canonical owner per content node</div><span class="phase-badge pb-must">Must</span></div>
+        <div class="phase-item"><div class="phase-num">P9</div><div class="phase-name">Hierarchical section tree — H1→H2→H3 heading-driven hierarchy</div><span class="phase-badge pb-must">Must</span></div>
+        <div class="phase-item"><div class="phase-num">P10</div><div class="phase-name">Content extraction — text, headings, links, images, lists, tables per section</div><span class="phase-badge pb-must">Must</span></div>
+        <div class="phase-item"><div class="phase-num">GATE</div><div class="phase-name">⛔ CHECKPOINT — verify Wikipedia, MDN, Hacker News static extraction before continuing</div><span class="phase-badge pb-must">Verify</span></div>
+        <div class="phase-item"><div class="phase-num">P11</div><div class="phase-name">Browser engine — async Playwright, isolated contexts, null-safe evaluate(), feeds same pipeline</div><span class="phase-badge pb-core">Core</span></div>
+        <div class="phase-item"><div class="phase-num">P12</div><div class="phase-name">Deduplication — fingerprint-based, runs before final JSON</div><span class="phase-badge pb-core">Core</span></div>
+        <div class="phase-item"><div class="phase-num">P13</div><div class="phase-name">Normalization + validation — absolute URLs, required fields, correct types</div><span class="phase-badge pb-core">Core</span></div>
+        <div class="phase-item"><div class="phase-num">P14</div><div class="phase-name">Error model + observability — structured errors, strategy field, timing, counts</div><span class="phase-badge pb-core">Core</span></div>
+        <div class="phase-item"><div class="phase-num">P15</div><div class="phase-name">Interaction engine — tabs, load-more, scroll, pagination — all bounded</div><span class="phase-badge pb-core">Core</span></div>
+        <div class="phase-item"><div class="phase-num">P16</div><div class="phase-name">Frontend redesign — tabbed viewer, hierarchical content, debug area</div><span class="phase-badge pb-core">Core</span></div>
+        <div class="phase-item"><div class="phase-num">P17</div><div class="phase-name">Config centralization — all limits and timeouts in one place</div><span class="phase-badge pb-core">Core</span></div>
+        <div class="phase-item"><div class="phase-num">P18</div><div class="phase-name">Documentation — design_notes.md, README, capabilities.json</div><span class="phase-badge pb-later">After Core</span></div>
+        <div class="phase-item"><div class="phase-num">P19</div><div class="phase-name">Regression tests — fixture-based, deterministic, covers failure paths</div><span class="phase-badge pb-later">After Core</span></div>
+      </div>
+    </section>
+
+    <hr class="divider">
+
+    <!-- 05 URL -->
+    <section class="section" id="s-url">
+      <div class="section-header">
+        <div class="section-num">5</div>
+        <h2>URL Management & Security</h2>
+        <span class="section-tag tag-critical">Security</span>
+      </div>
+
+      <p>Create one centralized URL policy module. Every URL that enters the system must pass through this layer before any network request is made. This layer must not contain HTML parsing logic.</p>
+
+      <div class="grid-2">
+        <div class="card">
+          <h4>URL Validation Rules</h4>
+          <ul>
+            <li>Accept only <code>http</code> and <code>https</code> schemes — reject everything else immediately</li>
+            <li>Normalize consistently — strip trailing slash, lowercase scheme and host</li>
+            <li>Preserve meaningful query parameters</li>
+            <li>Capture requested URL and final URL (after redirects) separately</li>
+            <li>Resolve all relative URLs against the correct final base URL</li>
+            <li>Detect and prevent navigation cycles using a visited URL set</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>SSRF & Security Blocks</h4>
+          <ul>
+            <li>Block localhost and loopback addresses (127.0.0.0/8, ::1)</li>
+            <li>Block private network ranges (10.x, 172.16-31.x, 192.168.x)</li>
+            <li>Block link-local addresses (169.254.x.x)</li>
+            <li>Block cloud metadata endpoints (169.254.169.254)</li>
+            <li>Validate redirect targets — do not follow redirects to private IPs</li>
+            <li>Constrain to standard ports (80, 443, 8080) unless explicitly configured</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="rule-box critical">
+        <div class="rule-title critical">⚠ Rejection Response Shape</div>
+        <p>When a URL is rejected, return HTTP 400 with a JSON body that is still schema-compliant: include <code>url</code>, <code>scrapedAt</code>, empty <code>meta</code>, empty <code>sections: []</code>, empty <code>interactions</code>, and <code>errors: [{"message": "...", "phase": "validation"}]</code>. Never let an invalid URL reach the fetcher or browser.</p>
+      </div>
+    </section>
+
+    <!-- 06 FETCH -->
+    <section class="section" id="s-fetch">
+      <div class="section-header">
+        <div class="section-num">6</div>
+        <h2>Fetch Manager</h2>
+        <span class="section-tag tag-core">Phase 2</span>
+      </div>
+
+      <p>Static fetching must always be the cheapest first path. Use <code>httpx</code> with the following requirements on every request:</p>
+
+      <div class="grid-2">
+        <div class="card">
+          <h4>Required Headers</h4>
+          <ul>
+            <li><code>User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36</code></li>
+            <li><code>Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8</code></li>
+            <li><code>Accept-Language: en-US,en;q=0.5</code></li>
+            <li><code>Accept-Encoding: gzip, deflate, br</code></li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>Required Fetch Behavior</h4>
+          <ul>
+            <li>Connection timeout: 10s, read timeout: 20s, total: 30s</li>
+            <li>Follow redirects — capture final URL after redirect chain</li>
+            <li>Enforce max response size (default 10MB)</li>
+            <li>Detect content-type — skip non-HTML with appropriate error</li>
+            <li>Handle charset from HTTP header first, then meta tag fallback</li>
+            <li>Return structured fetch result including timing, status, final URL</li>
+          </ul>
+        </div>
+      </div>
+
+      <p>The fetch manager returns a normalized source object — not raw HTML directly. This object carries: <code>requested_url</code>, <code>final_url</code>, <code>status_code</code>, <code>content_type</code>, <code>decoded_html</code>, <code>fetch_duration_ms</code>, and <code>fetch_errors</code>.</p>
+    </section>
+
+    <!-- 07 DECISION -->
+    <section class="section" id="s-decision">
+      <div class="section-header">
+        <div class="section-num">7</div>
+        <h2>Static vs JS Decision</h2>
+        <span class="section-tag tag-core">Phase 3</span>
+      </div>
+
+      <p>Use four states, not a binary true/false decision:</p>
+
+      <div class="grid-2">
+        <div class="card">
+          <h4>Decision States</h4>
+          <ul>
+            <li><strong>STATIC_COMPLETE</strong> — sufficient content, no browser needed</li>
+            <li><strong>STATIC_PARTIAL</strong> — some content found, browser may enrich</li>
+            <li><strong>STATIC_EMPTY</strong> — fetch succeeded but no content found</li>
+            <li><strong>JS_REQUIRED</strong> — clear signals this is a client-rendered SPA</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>JS Required Signals</h4>
+          <ul>
+            <li><code>&lt;div id="root"&gt;</code> or <code>&lt;div id="app"&gt;</code> with little surrounding text</li>
+            <li>Body has fewer than 3 <code>&lt;p&gt;</code> tags but more than 5 <code>&lt;script&gt;</code> tags</li>
+            <li><code>&lt;noscript&gt;</code> contains meaningful text over 100 characters</li>
+            <li>Loading placeholders or skeleton screens present</li>
+            <li>Text density below 0.1 after stripping scripts/styles</li>
+            <li>Paragraph count below minimum threshold for content-type</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="rule-box success">
+        <div class="rule-title success">✓ Static Success Preserved</div>
+        <p>If static scraping succeeds and the browser later fails, return the static result plus a browser error entry. Never discard successful static data because the optional browser step failed.</p>
+      </div>
+    </section>
+
+    <!-- 08 BROWSER -->
+    <section class="section" id="s-browser">
+      <div class="section-header">
+        <div class="section-num">8</div>
+        <h2>Browser Engine</h2>
+        <span class="section-tag tag-core">Phase 11</span>
+      </div>
+
+      <div class="rule-box critical">
+        <div class="rule-title critical">⚠ Async Playwright Only</div>
+        <p>Replace all <code>sync_playwright</code> usage with <code>async_playwright</code> from <code>playwright.async_api</code>. The FastAPI endpoint must be <code>async def</code>. All Playwright calls must use <code>await</code>. Verify no synchronous Playwright import remains anywhere after this change.</p>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h4>Browser Engine Responsibilities</h4>
+          <ul>
+            <li>Playwright lifecycle management with isolated contexts</li>
+            <li>Navigation with proper wait strategy</li>
+            <li>DOM/network readiness detection</li>
+            <li>Safe browser cleanup — always close contexts in finally block</li>
+            <li>Browser-level timeouts (default 30s)</li>
+            <li>Rendered HTML capture — feed into same pipeline as static</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>Wait Strategy</h4>
+          <ul>
+            <li>Primary: <code>networkidle</code> with 1500ms timeout after navigation</li>
+            <li>Fallback: <code>domcontentloaded</code> + 2000ms fixed sleep</li>
+            <li>Document wait strategy used in design_notes.md</li>
+            <li>Never wait indefinitely — all waits must have timeouts</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="rule-box critical">
+        <div class="rule-title critical">⚠ scrollHeight Null Guard — Required on Every evaluate() Call</div>
+        <p>Replace every bare <code>document.body.scrollHeight</code> with the null-safe version:</p>
+      </div>
+      <pre>// WRONG — crashes when body is null
+page.evaluate("document.body.scrollHeight")
+
+// CORRECT — null safe
+page.evaluate("""
+    document.body 
+        ? document.body.scrollHeight 
+        : document.documentElement.scrollHeight
+""")</pre>
+      <p>Additionally, wrap the entire scroll loop in a try/except. If any evaluate() call throws, catch the exception, append it to errors[] with <code>phase: "scroll"</code>, and exit the loop cleanly without discarding already-extracted content.</p>
+    </section>
+
+    <!-- 09 PAGE ANALYSIS -->
+    <section class="section" id="s-pageanalysis">
+      <div class="section-header">
+        <div class="section-num">9</div>
+        <h2>Page Analysis, Region Detection & Content Scoring</h2>
+        <span class="section-tag tag-arch">Phases 4–7</span>
+      </div>
+
+      <div class="rule-box warning">
+        <div class="rule-title warning">⚠ Do Not Create sections[] Immediately</div>
+        <p>First build an internal page map. The page map exists to understand ownership — it does not automatically become the public result. Only after ownership and hierarchy are established do you create the final sections array.</p>
+      </div>
+
+      <h3>Region Detection — Use Multiple Signals</h3>
+      <div class="grid-2">
+        <div class="card">
+          <h4>Positive Content Signals</h4>
+          <ul>
+            <li>Meaningful text density (text chars / total chars)</li>
+            <li>Paragraph count and density</li>
+            <li>Heading count and density</li>
+            <li>Sentence-like text patterns</li>
+            <li>Article-like descendants</li>
+            <li>Content-to-link ratio above threshold</li>
+            <li>Content-to-control ratio above threshold</li>
+            <li>Coherent reading order</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>Negative / Component Signals</h4>
+          <ul>
+            <li>Navigation density (many links, few paragraphs)</li>
+            <li>Button/control density</li>
+            <li>Account/login text patterns</li>
+            <li>Language selector patterns (many short language name links)</li>
+            <li>Repeated sitewide labels</li>
+            <li>Footer patterns (copyright, terms, privacy links)</li>
+            <li>Cookie banner / modal patterns</li>
+            <li>Mostly hidden or inert content</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>Regions to Identify</h3>
+      <pre>PAGE_COMPONENTS          PRIMARY_CONTENT
+├── HEADER               ├── title
+├── NAVIGATION           ├── introduction  
+├── SIDEBAR              ├── section
+├── BREADCRUMBS          ├── subsection
+├── TABLE_OF_CONTENTS    ├── paragraph
+├── LANGUAGE_SELECTOR    ├── list
+├── USER_TOOLS           ├── table
+├── PAGE_TOOLS           ├── image
+├── COOKIE_BANNER        ├── video/audio
+├── MODAL_OVERLAY        ├── quote
+└── FOOTER               └── code</pre>
+
+      <div class="rule-box">
+        <div class="rule-title">Wikipedia Regression Target</div>
+        <p>The Wikipedia language selector (180 language links) must be classified as <code>LANGUAGE_SELECTOR</code> page component — not included in article title text. The article body must be classified as hierarchical content sections under the article's heading tree. The page-wide <code>&lt;main&gt;</code> wrapper must not become a giant duplicate section. None of this should be achieved via hardcoded Wikipedia selectors — it must work through generic scoring.</p>
+      </div>
+    </section>
+
+    <!-- 10 OWNERSHIP -->
+    <section class="section" id="s-ownership">
+      <div class="section-header">
+        <div class="section-num">10</div>
+        <h2>DOM Ownership & Hierarchical Sections</h2>
+        <span class="section-tag tag-arch">Phases 8–9</span>
+      </div>
+
+      <div class="rule-box critical">
+        <div class="rule-title critical">⚠ One Content Node → One Canonical Owner — Always</div>
+        <p>Every extracted node or region must have exactly one canonical owner in the final result. If MAIN owns child ARTICLE, do not create a full duplicate section from MAIN and then another full section from ARTICLE. If a child is separately represented, the parent's extraction must exclude child-owned content.</p>
+      </div>
+
+      <p>Use DOM node identity and stable node fingerprints to enforce ownership. A fingerprint can be computed from a combination of tag name, position in tree, first 50 characters of text content, and heading hierarchy path.</p>
+
+      <h3>Correct Hierarchical Section Model</h3>
+      <pre>H1: Artificial intelligence
+├── Introduction (content before first H2)
+├── H2: Goals
+│   ├── content
+│   ├── H3: Reasoning and problem-solving
+│   ├── H3: Knowledge representation
+│   ├── H3: Planning and decision-making
+│   └── H3: Learning
+├── H2: Techniques
+│   ├── H3: Search and optimization
+│   └── H3: Logic
+├── H2: Applications
+└── H2: Ethics</pre>
+
+      <div class="grid-2">
+        <div class="card">
+          <h4>Section ID Generation</h4>
+          <ul>
+            <li>Generate stable IDs from heading text — not random indexes</li>
+            <li>Slugify heading: "Goals" → "goals", "Reasoning and problem-solving" → "reasoning-and-problem-solving"</li>
+            <li>Add depth prefix: "h2-goals", "h3-reasoning-and-problem-solving"</li>
+            <li>Append numeric suffix only if slug collides</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>Section Type Classification</h4>
+          <ul>
+            <li><code>hero</code> — only with strong positive signals: H1 + substantial intro text + prominent position</li>
+            <li><code>section</code> — standard content section under H2</li>
+            <li><code>nav</code> — navigation detected by component signals</li>
+            <li><code>list</code> — section dominated by list content with no substantial paragraphs</li>
+            <li><code>footer</code> — detected footer region</li>
+            <li><code>unknown</code> — insufficient signals to classify confidently</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 11 EXTRACTION -->
+    <section class="section" id="s-extraction">
+      <div class="section-header">
+        <div class="section-num">11</div>
+        <h2>Content Extraction</h2>
+        <span class="section-tag tag-core">Phase 10</span>
+      </div>
+
+      <p>Extraction runs after ownership is established. For each owned section, extract the following fields. Preserve the existing working extraction functions — wrap them into the new pipeline rather than rewriting them.</p>
+
+      <div class="grid-2">
+        <div class="card">
+          <h4>Required Per Section</h4>
+          <ul>
+            <li><code>headings</code> — array of strings, in reading order</li>
+            <li><code>text</code> — main body text, with separately-owned child sections excluded</li>
+            <li><code>links</code> — array of {text, href} where href is always absolute</li>
+            <li><code>images</code> — array of {src, alt} where src is always absolute</li>
+            <li><code>lists</code> — array of arrays of strings</li>
+            <li><code>tables</code> — array of table data structures</li>
+            <li><code>rawHtml</code> — truncated to 2000 chars, truncated boolean set</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>Meta Extraction Fallback Chain</h4>
+          <ul>
+            <li><code>title</code>: &lt;title&gt; → og:title → twitter:title → first H1 (max 200 chars)</li>
+            <li><code>description</code>: meta[name=description] → og:description → twitter:description → first &lt;p&gt; (max 200 chars)</li>
+            <li><code>language</code>: &lt;html lang&gt; → meta[http-equiv=content-language] → default "en"</li>
+            <li><code>canonical</code>: &lt;link rel=canonical&gt; → null if not found</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>Noise Filtering Before Extraction</h3>
+      <p>Before section extraction runs, strip elements that match noise patterns. Remove elements whose class or id contains any of these keywords: <code>cookie</code>, <code>consent</code>, <code>modal</code>, <code>popup</code>, <code>overlay</code>, <code>dialog</code>, <code>banner</code>, <code>newsletter</code>, <code>subscribe</code>, <code>gdpr</code>, <code>toast</code>. Also strip <code>&lt;script&gt;</code>, <code>&lt;style&gt;</code>, <code>&lt;noscript&gt;</code>, and <code>&lt;svg&gt;</code> tags from text content but not from raw HTML.</p>
+    </section>
+
+    <!-- 12 DEDUP -->
+    <section class="section" id="s-dedup">
+      <div class="section-header">
+        <div class="section-num">12</div>
+        <h2>Deduplication</h2>
+        <span class="section-tag tag-core">Phase 12</span>
+      </div>
+
+      <p>Deduplication runs after all extraction and interaction passes complete, before the final JSON is assembled. This prevents the current problem of parent containers containing full copies of child sections.</p>
+
+      <h3>Fingerprinting Algorithm</h3>
+      <pre>def section_fingerprint(section):
+    # Combine heading text + first 100 chars of body text
+    heading_str = "|".join(section["content"]["headings"])
+    text_prefix = section["content"]["text"][:100].strip()
+    return hashlib.md5(f"{heading_str}::{text_prefix}".encode()).hexdigest()
+
+# Deduplication pass
+seen = set()
+unique_sections = []
+for section in sections:
+    fp = section_fingerprint(section)
+    if fp not in seen:
+        seen.add(fp)
+        unique_sections.append(section)</pre>
+
+      <p>Additionally: if section A's text is a substring of section B's text and they share the same heading, keep only the more specific one (the one with less text overlap to its parent). Never silently discard sections — log deduplication count in observability stats.</p>
+    </section>
+
+    <!-- 13 INTERACTIONS -->
+    <section class="section" id="s-interactions">
+      <div class="section-header">
+        <div class="section-num">13</div>
+        <h2>Interaction Engine</h2>
+        <span class="section-tag tag-core">Phase 15</span>
+      </div>
+
+      <div class="rule-box warning">
+        <div class="rule-title warning">⚠ Interactions Only Run After Initial Extraction Succeeds</div>
+        <p>Save a result snapshot after Phase 12 (initial extraction + dedup). Interaction failures must never overwrite or erase this snapshot. All interaction content is merged incrementally into the existing result.</p>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h4>Click Flows</h4>
+          <ul>
+            <li>Detect tab elements: <code>[role="tab"]</code>, <code>.tab</code>, <code>[data-tab]</code></li>
+            <li>Detect load-more: buttons containing "load more", "show more", "see more"</li>
+            <li>Click each discovered element, wait for content, extract new content only</li>
+            <li>Record each attempted selector in <code>interactions.clicks[]</code></li>
+            <li>Max clicks: 10 per page. Stop on timeout or error — record in errors[]</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>Scroll & Pagination</h4>
+          <ul>
+            <li>Infinite scroll: scroll + wait for height change, max 4 iterations</li>
+            <li>Count scroll attempts in <code>interactions.scrolls</code> — not just successful ones</li>
+            <li>Pagination: follow "next page" links, maintain visited URL set</li>
+            <li>Visited URL set uses normalized URLs (lowercase, no trailing slash)</li>
+            <li>Hard stop at 3 pages minimum, max 5 pages</li>
+            <li>Record all visited URLs in <code>interactions.pages[]</code></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="rule-box critical">
+        <div class="rule-title critical">⚠ Pagination Cannot Loop Forever</div>
+        <p>Before following any next-page link: normalize the candidate URL, check if it exists in <code>visited_urls</code> set, and break if it does. This prevents infinite pagination loops regardless of what the site does.</p>
+      </div>
+    </section>
+
+    <!-- 14 DATA MODEL -->
+    <section class="section" id="s-datamodel">
+      <div class="section-header">
+        <div class="section-num">14</div>
+        <h2>Final Data Model</h2>
+        <span class="section-tag tag-core">Schema</span>
+      </div>
+
+      <p>The response schema must remain assignment-compliant. Do not change field names or types. You may add optional fields but all required fields must remain present and correctly typed.</p>
+
+      <pre>{
+  "result": {
+    "url": "string — exact match of input URL",
+    "scrapedAt": "string — ISO8601 UTC datetime",
+    "meta": {
+      "title": "string (never null, may be empty)",
+      "description": "string (never null, may be empty)",
+      "language": "string — e.g. 'en'",
+      "canonical": "string URL or null",
+      "strategy": "static | js | static+js  ← add this field"
+    },
+    "sections": [
+      {
+        "id": "string — stable slug-based ID",
+        "type": "hero|section|nav|footer|list|grid|faq|pricing|unknown",
+        "label": "string — human readable, first 5-7 words if no heading",
+        "sourceUrl": "string — absolute URL this section came from",
+        "depth": 0,  // ← add: 0=top-level, 1=h2, 2=h3
+        "parentId": null,  // ← add: ID of parent section or null
+        "content": {
+          "headings": ["array of strings"],
+          "text": "string — body text, child-owned content excluded",
+          "links": [{"text": "string", "href": "absolute URL"}],
+          "images": [{"src": "absolute URL", "alt": "string"}],
+          "lists": [["array", "of", "strings"]],
+          "tables": []
+        },
+        "rawHtml": "string — truncated to 2000 chars",
+        "truncated": true
+      }
+    ],
+    "components": {  // ← add: page chrome, separate from content
+      "navigation": [],
+      "tableOfContents": [],
+      "languageSelector": [],
+      "sidebar": [],
+      "footer": []
+    },
+    "interactions": {
+      "clicks": ["array of CSS selectors or descriptions"],
+      "scrolls": 0,
+      "pages": ["array of absolute URLs visited"]
+    },
+    "stats": {  // ← add: observability
+      "fetchDurationMs": 0,
+      "renderDurationMs": 0,
+      "totalDurationMs": 0,
+      "sectionsExtracted": 0,
+      "sectionsDeduped": 0,
+      "linksFound": 0,
+      "imagesFound": 0
+    },
+    "errors": [
+      {"message": "string", "phase": "string", "recoverable": true}
+    ]
+  }
+}</pre>
+    </section>
+
+    <!-- 15 ERRORS -->
+    <section class="section" id="s-errors">
+      <div class="section-header">
+        <div class="section-num">15</div>
+        <h2>Error Model</h2>
+        <span class="section-tag tag-core">Phase 14</span>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h4>Error Phases</h4>
+          <ul>
+            <li><code>validation</code> — invalid URL, bad scheme</li>
+            <li><code>fetch</code> — network failure, timeout, 4xx/5xx</li>
+            <li><code>render</code> — Playwright crash, browser timeout</li>
+            <li><code>parse</code> — HTML parsing failure</li>
+            <li><code>analysis</code> — page structure analysis failure</li>
+            <li><code>extract</code> — content extraction error</li>
+            <li><code>scroll</code> — scrollHeight crash, scroll timeout</li>
+            <li><code>pagination</code> — next-page link failure</li>
+            <li><code>deduplication</code> — fingerprint error</li>
+            <li><code>normalization</code> — URL resolution error</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>Error Behavior Rules</h4>
+          <ul>
+            <li>Never silently swallow exceptions</li>
+            <li>Always append to errors[] with correct phase and message</li>
+            <li>Mark recoverable: true if earlier data was preserved</li>
+            <li>Return partial data with errors — never crash the endpoint</li>
+            <li>FastAPI endpoint must return 200 with errors[] populated, not 500</li>
+            <li>Only return 400 for validation errors (bad URL scheme)</li>
+            <li>Only return 500 for genuinely unexpected server errors</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 16 FRONTEND -->
+    <section class="section" id="s-frontend">
+      <div class="section-header">
+        <div class="section-num">16</div>
+        <h2>Frontend Redesign</h2>
+        <span class="section-tag tag-core">Phase 16</span>
+      </div>
+
+      <div class="rule-box warning">
+        <div class="rule-title warning">⚠ Implement Frontend Last</div>
+        <p>Do not redesign the frontend until the backend pipeline is verified working on all four test URLs. The frontend is a viewer — it does not matter how good it looks if the data is wrong.</p>
+      </div>
+
+      <h3>Display Order (Human-First Priority)</h3>
+      <pre>1. Scrape status (Complete / Error / Partial)
+2. Requested URL / Final URL / Strategy used
+3. Page title + language
+4. Metadata summary
+5. Main content — hierarchical section reader  ← primary focus
+6. Tabbed resource views: LINKS | IMAGES | TABLES | MEDIA | COMPONENTS
+7. Interaction history (clicks, scrolls, pages)
+8. Statistics (timing, counts)
+9. Errors and warnings
+10. Debug / Raw JSON  ← collapsed by default, never shown first</pre>
+
+      <h3>Content Viewer (Default Tab)</h3>
+      <p>Render a clean nested expandable tree based on section <code>depth</code> and <code>parentId</code> fields. Each node shows the label and collapses to reveal the section text. Do not show raw JSON under every section by default — move that to the Debug tab.</p>
+
+      <pre>Artificial intelligence                     [hero]
+
+  Introduction
+  AI is the capability of computational systems...
+
+  ▼ Goals
+    AI research has focused on...
+    ▼ Reasoning and problem-solving
+      Early AI researchers developed...
+    ▼ Knowledge representation
+      ...
+
+  ▼ Techniques
+  ▼ Applications
+  ▼ Ethics</pre>
+
+      <h3>Required Frontend Elements</h3>
+      <div class="grid-2">
+        <div class="card">
+          <h4>Must Include</h4>
+          <ul>
+            <li>URL input + Scrape button</li>
+            <li>Loading state while scraping</li>
+            <li>Error display — red box for errors[] when non-empty</li>
+            <li>Overview stats bar (title, strategy, section count, link count)</li>
+            <li>Hierarchical content reader with expand/collapse</li>
+            <li>Download JSON button</li>
+            <li>Tab for page components (nav, TOC, language selector, footer)</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>Tabs to Build</h4>
+          <ul>
+            <li><strong>Content</strong> — hierarchical section reader (default)</li>
+            <li><strong>Links</strong> — list of link text + absolute URL</li>
+            <li><strong>Images</strong> — thumbnail grid with alt text</li>
+            <li><strong>Tables</strong> — rendered table elements</li>
+            <li><strong>Components</strong> — page chrome: nav, TOC, footer</li>
+            <li><strong>Debug</strong> — raw JSON, collapsed by default</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 17 ARCH -->
+    <section class="section" id="s-arch">
+      <div class="section-header">
+        <div class="section-num">17</div>
+        <h2>Target Module Architecture</h2>
+        <span class="section-tag tag-arch">Structure</span>
+      </div>
+
+      <div class="warning-box">
+        ⚠ Do not create every module at once. Introduce modules only as responsibilities become large enough to justify separation. The structure below is the target — build toward it incrementally, not all at once.
+      </div>
+
+      <div class="file-tree">
+<span class="ft-dir">app/</span>
+├── <span class="ft-file">main.py</span>                    <span class="ft-comment"># routes, request validation, orchestration</span>
+├── <span class="ft-dir">scraper/</span>
+│   ├── <span class="ft-file">orchestrator.py</span>          <span class="ft-comment"># pipeline coordinator</span>
+│   ├── <span class="ft-file">models.py</span>                <span class="ft-comment"># Pydantic data models</span>
+│   ├── <span class="ft-file">config.py</span>                <span class="ft-comment"># all limits and timeouts — no magic numbers elsewhere</span>
+│   ├── <span class="ft-file">urls.py</span>                  <span class="ft-comment"># URL validation, normalization, SSRF protection</span>
+│   ├── <span class="ft-file">errors.py</span>                <span class="ft-comment"># structured error classes</span>
+│   ├── <span class="ft-dir">fetch/</span>
+│   │   ├── <span class="ft-file">static.py</span>            <span class="ft-comment"># httpx fetch, headers, encoding</span>
+│   │   └── <span class="ft-file">browser.py</span>           <span class="ft-comment"># async Playwright — feeds same pipeline</span>
+│   ├── <span class="ft-dir">analysis/</span>
+│   │   ├── <span class="ft-file">page_analyzer.py</span>     <span class="ft-comment"># static vs JS decision, page map</span>
+│   │   ├── <span class="ft-file">region_detector.py</span>   <span class="ft-comment"># HEADER/NAV/MAIN/FOOTER region scoring</span>
+│   │   └── <span class="ft-file">content_scorer.py</span>    <span class="ft-comment"># primary content root scoring</span>
+│   ├── <span class="ft-dir">extraction/</span>
+│   │   ├── <span class="ft-file">ownership.py</span>         <span class="ft-comment"># DOM ownership enforcement</span>
+│   │   ├── <span class="ft-file">hierarchy.py</span>         <span class="ft-comment"># H1→H2→H3 section tree builder</span>
+│   │   ├── <span class="ft-file">text.py</span>              <span class="ft-comment"># text extraction, noise removal</span>
+│   │   ├── <span class="ft-file">links.py</span>             <span class="ft-comment"># link extraction, absolute URL resolution</span>
+│   │   ├── <span class="ft-file">media.py</span>             <span class="ft-comment"># images, video, audio</span>
+│   │   ├── <span class="ft-file">lists.py</span>             <span class="ft-comment"># list extraction</span>
+│   │   └── <span class="ft-file">tables.py</span>            <span class="ft-comment"># table extraction</span>
+│   ├── <span class="ft-dir">processing/</span>
+│   │   ├── <span class="ft-file">deduplication.py</span>     <span class="ft-comment"># fingerprint-based dedup</span>
+│   │   ├── <span class="ft-file">normalization.py</span>     <span class="ft-comment"># URL normalization, text cleanup</span>
+│   │   └── <span class="ft-file">validation.py</span>        <span class="ft-comment"># schema validation before response</span>
+│   └── <span class="ft-dir">interaction/</span>
+│       ├── <span class="ft-file">detector.py</span>          <span class="ft-comment"># find tabs, load-more, pagination</span>
+│       ├── <span class="ft-file">clicks.py</span>            <span class="ft-comment"># tab/button click flows</span>
+│       ├── <span class="ft-file">scrolling.py</span>         <span class="ft-comment"># null-safe infinite scroll</span>
+│       └── <span class="ft-file">pagination.py</span>        <span class="ft-comment"># visited-set pagination</span>
+└── <span class="ft-dir">frontend/</span>
+    └── <span class="ft-dir">templates/</span>
+        └── <span class="ft-file">index.html</span>           <span class="ft-comment"># tabbed viewer, hierarchical content</span>
+      </div>
+    </section>
+
+    <!-- 18 CONFIG -->
+    <section class="section" id="s-config">
+      <div class="section-header">
+        <div class="section-num">18</div>
+        <h2>Config & Resource Limits</h2>
+        <span class="section-tag tag-core">Phase 17</span>
+      </div>
+
+      <p>All limits and timeouts must live in <code>config.py</code>. No magic numbers scattered in other files. Every module reads from config.</p>
+
+      <pre>class ScraperConfig:
+    # HTTP
+    FETCH_CONNECT_TIMEOUT = 10      # seconds
+    FETCH_READ_TIMEOUT = 20         # seconds
+    FETCH_TOTAL_TIMEOUT = 30        # seconds
+    MAX_RESPONSE_BYTES = 10_000_000 # 10MB
+
+    # Browser
+    BROWSER_TIMEOUT = 30_000        # milliseconds
+    BROWSER_WAIT_AFTER_LOAD = 1500  # milliseconds
+
+    # Interactions
+    MAX_SCROLLS = 4
+    MAX_PAGES = 5
+    MIN_PAGES = 3                   # for assignment depth requirement
+    MAX_CLICKS = 10
+    MAX_INTERACTION_RUNTIME = 60    # seconds total
+
+    # Extraction
+    RAW_HTML_TRUNCATE = 2000        # characters
+    MAX_EXTRACTED_TEXT = 500_000    # characters per section
+    MAX_LINKS = 500                 # per section
+    MAX_IMAGES = 200                # per page
+
+    # Content scoring thresholds
+    MIN_TEXT_LENGTH_STATIC = 500    # chars — below this consider JS fallback
+    MIN_PARAGRAPH_COUNT = 2
+    MIN_TEXT_DENSITY = 0.05</pre>
+
+      <h3>Dependency Versions — Pin All</h3>
+      <pre>fastapi==0.111.0
+uvicorn==0.29.0
+httpx==0.27.0
+beautifulsoup4==4.12.3
+lxml==5.2.1
+playwright==1.44.0
+jinja2==3.1.4
+pydantic==2.7.0</pre>
+    </section>
+
+    <!-- 19 DOCS -->
+    <section class="section" id="s-docs">
+      <div class="section-header">
+        <div class="section-num">19</div>
+        <h2>Required Documentation Files</h2>
+        <span class="section-tag tag-docs">Phase 18</span>
+      </div>
+
+      <p>After the backend pipeline is verified, update all documentation to match actual implemented behavior.</p>
+
+      <h3>design_notes.md — Required Headings</h3>
+      <pre>## Static vs JS Fallback
+Describe: two-pass static attempt (landmarks → high-signal divs), 
+four-state decision (STATIC_COMPLETE/PARTIAL/EMPTY/JS_REQUIRED), 
+SPA detection signals used.
+
+## Wait Strategy for JS
+Describe: networkidle + 1500ms fallback, domcontentloaded + 2000ms,
+which selectors waited for, why.
+
+## Click & Scroll Strategy
+Describe: tab/load-more detection selectors, scroll loop with 
+null-safe height check, pagination with visited URL set, 
+stop conditions (max 4 scrolls, max 5 pages, cycle prevention).
+
+## Section Grouping & Labels
+Describe: page map → region detection → content scoring → 
+DOM ownership → heading hierarchy → section tree. 
+How type and label are derived.
+
+## Noise Filtering & Truncation
+Describe: keyword-based element removal list, rawHtml 
+truncation limit (2000 chars), truncated boolean logic.</pre>
+
+      <h3>capabilities.json — Honest Only</h3>
+      <pre>{
+  "static_scraping": true,
+  "js_rendering": true,
+  "click_tabs": false,
+  "load_more_clicks": true,
+  "infinite_scroll": true,
+  "pagination_links": true,
+  "noise_filtering": true,
+  "html_truncation": true,
+  "dom_ownership_enforcement": true,
+  "hierarchical_sections": true,
+  "deduplication": true,
+  "ssrf_protection": true
+}
+// Set each boolean only if implemented AND verified in tests</pre>
+
+      <h3>README.md — Must Include</h3>
+      <pre>## Setup
+chmod +x run.sh
+./run.sh
+
+## Architecture
+Brief description of the pipeline (fetch → analyze → extract → interact → normalize → present)
+One ASCII diagram of the module structure
+
+## Test Results
+- Wikipedia: [pass/fail] — static mode, N sections extracted
+- MDN: [pass/fail] — static mode, meta fields populated  
+- Hacker News: [pass/fail] — N pages in interactions.pages
+- Vercel: [pass/fail] — JS mode, N sections extracted
+
+## Known Limitations</pre>
+    </section>
+
+    <!-- 20 VERIFY -->
+    <section class="section" id="s-verify">
+      <div class="section-header">
+        <div class="section-num">20</div>
+        <h2>Verification Checkpoints</h2>
+        <span class="section-tag tag-verify">Mandatory Gates</span>
+      </div>
+
+      <div class="rule-box critical">
+        <div class="rule-title critical">⚠ Do Not Proceed to Next Phase Without Passing Current Gate</div>
+        <p>After every major phase: run syntax/import checks, verify the server starts, run integration tests against real URLs, and confirm previously working behavior is still working. Create a Git checkpoint after each passing gate.</p>
+      </div>
+
+      <h3>Gate 1 — After Phases P1–P10 (Before Browser Engine)</h3>
+      <div class="checkpoint">
+        <div class="checkpoint-title">🟢 Static Pipeline Checkpoint</div>
+        <div class="test-url">
+          <span class="test-url-num">1</span>
+          <span class="test-url-addr">https://en.wikipedia.org/wiki/Artificial_intelligence</span>
+          <span class="test-url-expect">Static mode only, ≥5 real article sections, meta.title populated, no nav chrome in sections[], language selector in components not article text</span>
+        </div>
+        <div class="test-url">
+          <span class="test-url-num">2</span>
+          <span class="test-url-addr">https://developer.mozilla.org/en-US/docs/Web/JavaScript</span>
+          <span class="test-url-expect">Static mode, real content sections, meta.description populated, absolute links</span>
+        </div>
+      </div>
+
+      <h3>Gate 2 — After Phase P11 (Browser Engine)</h3>
+      <div class="checkpoint">
+        <div class="checkpoint-title">🟢 Browser Render Checkpoint</div>
+        <div class="test-url">
+          <span class="test-url-num">3</span>
+          <span class="test-url-addr">https://vercel.com/</span>
+          <span class="test-url-expect">JS mode triggered, real content sections, no scrollHeight crash, interactions.scrolls > 0</span>
+        </div>
+      </div>
+
+      <h3>Gate 3 — After Phase P15 (Interactions)</h3>
+      <div class="checkpoint">
+        <div class="checkpoint-title">🟢 Interaction Checkpoint</div>
+        <div class="test-url">
+          <span class="test-url-num">4</span>
+          <span class="test-url-addr">https://news.ycombinator.com/</span>
+          <span class="test-url-expect">interactions.pages contains ≥3 distinct URLs, interactions.clicks has ≥1 entry, pagination did not loop</span>
+        </div>
+      </div>
+
+      <h3>Gate 4 — Final Acceptance</h3>
+      <div class="checkpoint">
+        <div class="checkpoint-title">🟢 Full Pipeline Acceptance</div>
+        <p style="color: var(--muted); font-size: 13px; margin-bottom: 12px;">All four URLs must pass. Additionally verify:</p>
+        <div class="test-url">
+          <span class="test-url-num">✓</span>
+          <span class="test-url-addr">GET /healthz returns {"status": "ok"}</span>
+          <span class="test-url-expect">Stage 1</span>
+        </div>
+        <div class="test-url">
+          <span class="test-url-num">✓</span>
+          <span class="test-url-addr">POST /scrape with file:// URL returns 400 with validation error</span>
+          <span class="test-url-expect">Security</span>
+        </div>
+        <div class="test-url">
+          <span class="test-url-num">✓</span>
+          <span class="test-url-addr">requirements.txt has all versions pinned</span>
+          <span class="test-url-expect">Dependency</span>
+        </div>
+        <div class="test-url">
+          <span class="test-url-num">✓</span>
+          <span class="test-url-addr">design_notes.md has all 5 required headings with real content</span>
+          <span class="test-url-expect">Docs</span>
+        </div>
+        <div class="test-url">
+          <span class="test-url-num">✓</span>
+          <span class="test-url-addr">capabilities.json reflects only verified implemented features</span>
+          <span class="test-url-expect">Honesty</span>
+        </div>
+        <div class="test-url">
+          <span class="test-url-num">✓</span>
+          <span class="test-url-addr">Frontend shows error box when errors[] is non-empty</span>
+          <span class="test-url-expect">Stage 5</span>
+        </div>
+        <div class="test-url">
+          <span class="test-url-num">✓</span>
+          <span class="test-url-addr">./run.sh starts server cleanly from a fresh environment</span>
+          <span class="test-url-expect">Stage 1</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 21 DO NOT -->
+    <section class="section" id="s-donot">
+      <div class="section-header">
+        <div class="section-num">21</div>
+        <h2>Do NOT Build During This Upgrade</h2>
+        <span class="section-tag tag-critical">Scope Guard</span>
+      </div>
+
+      <div class="rule-box critical">
+        <div class="rule-title critical">Out of Scope — Do Not Add</div>
+        <p>These features would add complexity without improving the core scraping quality. They can be future extensions. First make the extraction reliable and structurally correct.</p>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h4>❌ Out of Scope Now</h4>
+          <ul>
+            <li>LLM/AI content extraction or summarization</li>
+            <li>Proxy rotation or IP management</li>
+            <li>CAPTCHA solving</li>
+            <li>Stealth mode or fingerprint evasion</li>
+            <li>Distributed job queues (Redis, Celery)</li>
+            <li>Microservices or containerized architecture</li>
+            <li>Databases or persistent storage</li>
+            <li>Scheduled or recurring scraping</li>
+            <li>XHR/network request interception</li>
+            <li>PDF, DOCX, or binary file parsing</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>❌ Do Not Start With</h4>
+          <ul>
+            <li>Making the frontend look prettier before backend works</li>
+            <li>Adding infinite scroll before static extraction is clean</li>
+            <li>Writing Wikipedia-specific selectors as the solution</li>
+            <li>Creating all 15 modules before understanding responsibilities</li>
+            <li>Rewriting working extraction functions before mapping their callers</li>
+            <li>Implementing phases out of order</li>
+            <li>Claiming a capability in capabilities.json before testing it</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 22 ACCEPTANCE -->
+    <section class="section" id="s-acceptance">
+      <div class="section-header">
+        <div class="section-num">22</div>
+        <h2>Final Acceptance Criteria</h2>
+        <span class="section-tag tag-verify">Definition of Done</span>
+      </div>
+
+      <p>The upgrade is not considered complete until every item below is true:</p>
+
+      <div class="grid-2">
+        <div class="card">
+          <h4>Extraction Quality</h4>
+          <ul>
+            <li>Static pages extract without unnecessary browser use</li>
+            <li>JS-only pages use Playwright fallback correctly</li>
+            <li>Both paths share the same extraction pipeline</li>
+            <li>Wikipedia language selector does not appear in article text</li>
+            <li>Article body is not labeled as generic "list"</li>
+            <li>No parent/child duplicate sections in output</li>
+            <li>Section hierarchy follows heading structure</li>
+            <li>All link hrefs are absolute URLs</li>
+            <li>meta.title is never empty when a title exists on the page</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>Robustness</h4>
+          <ul>
+            <li>scrollHeight crash is impossible under normal control flow</li>
+            <li>Pagination cannot loop forever</li>
+            <li>Optional failures preserve earlier successful data</li>
+            <li>SSRF/resource protections are active</li>
+            <li>Deduplication runs before final JSON</li>
+            <li>Interactions run after initial extraction snapshot</li>
+            <li>No stale imports or unclosed browser resources</li>
+            <li>Server starts cleanly from a fresh environment</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>Code Quality</h4>
+          <ul>
+            <li>No magic numbers outside config.py</li>
+            <li>No sync_playwright in FastAPI endpoints</li>
+            <li>All dependency versions pinned in requirements.txt</li>
+            <li>No dead code or stale imports remain</li>
+            <li>Error handling exists at every network and browser call</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>Documentation</h4>
+          <ul>
+            <li>design_notes.md has all 5 required headings with accurate content</li>
+            <li>capabilities.json reflects only verified features</li>
+            <li>README includes test results for all 4 verification URLs</li>
+            <li>run.sh starts the project cleanly</li>
+            <li>Frontend shows errors when errors[] is non-empty</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="rule-box success">
+        <div class="rule-title success">✓ Final Principle</div>
+        <p>Maximize useful information extracted from a public page while minimizing unnecessary browser work, duplicated data, incorrect ownership, brittle selectors, uncontrolled crawling, resource consumption, security risk, and catastrophic failure. If an algorithm is uncertain, preserve the data with explicit uncertainty diagnostics rather than inventing a false classification.</p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+</body>
+</html>
