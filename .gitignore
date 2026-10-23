@@ -5,6 +5,25 @@ __pycache__/
 *.pyd
 venv/
 .env
+.venv/
+
+# Local development
+.vscode/
+
+# Tests and local test output
+tests/
+test_*.py
+*_test.py
+
+# Project working notes and prompt artifacts
+*_notes.md
+*_prompt*.md
+*_prompt*.html
+*Blueprint*.md
+
+# Scraped/exported data
+*.json
+!capabilities.json
 
 # Playwright
 ms-playwright/

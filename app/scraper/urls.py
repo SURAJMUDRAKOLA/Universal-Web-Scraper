@@ -12,6 +12,11 @@ from urllib.parse import urlsplit, urlunsplit
 # Ports that are acceptable on public web URLs (per prompt spec)
 ALLOWED_PORTS = {80, 443, 8080}
 
+# Set SCRAPER_ALLOW_LOCAL_URLS=1 to permit 127.0.0.1:8080 during local testing.
+# Never set this in production.
+import os as _os
+_ALLOW_LOCAL = _os.environ.get("SCRAPER_ALLOW_LOCAL_URLS", "") == "1"
+
 
 class URLPolicyError(ValueError):
     """Raised when a URL fails the security or format policy check."""
@@ -48,6 +53,12 @@ def normalize_url(value: str) -> str:
 
     # ── Hostname / SSRF protection ────────────────────────────────────────────
     hostname = parsed.hostname.rstrip(".").lower()
+
+    # Test-mode bypass: allow 127.0.0.1:8080 when SCRAPER_ALLOW_LOCAL_URLS=1
+    if _ALLOW_LOCAL and hostname == "127.0.0.1" and port == 8080:
+        netloc = f"{hostname}:{port}"
+        return urlunsplit((parsed.scheme.lower(), netloc, parsed.path or "/", parsed.query, ""))
+
     if hostname in {"localhost", "localhost.localdomain"}:
         raise URLPolicyError("Local and private network URLs are not supported")
 

@@ -627,7 +627,24 @@ def _resources(tag: Tag, base_url: str) -> dict[str, list]:
 
     try:
         for img in tag.find_all("img", limit=MAX_IMAGES):
-            src = _safe_get(img, "src") or _safe_get(img, "data-src") or _safe_get(img, "data-lazy-src")
+            # C1: Extended lazy-load attribute chain — covers Shopify, WooCommerce,
+            # Next.js, and any srcset-only image (no bare src).
+            src = (
+                _safe_get(img, "src") or
+                _safe_get(img, "data-src") or
+                _safe_get(img, "data-lazy-src") or
+                _safe_get(img, "data-original") or    # jQuery lazy / WooCommerce
+                _safe_get(img, "data-image") or       # Shopify pattern
+                _safe_get(img, "data-lazy") or        # Generic lazy-load
+                ""
+            )
+            # srcset fallback: take the first URL when no src-style attr exists
+            if not src:
+                srcset = _safe_get(img, "srcset") or ""
+                if srcset:
+                    first = srcset.split(",")[0].strip().split(" ")[0]
+                    if first.startswith(("http", "/", "//")):
+                        src = first
             if src:
                 images.append({"src": urljoin(base_url, src), "alt": _safe_get(img, "alt")})
     except Exception:
@@ -668,8 +685,15 @@ def _resources(tag: Tag, base_url: str) -> dict[str, list]:
 
 _BLOCK_NAMES = {"p", "blockquote", "pre", "figure", "figcaption", "ul", "ol", "table", "dl"}
 
+# Container elements used in React/Shopify/Next.js component trees.
+# Only used for resource extraction, NOT for text (avoids div-soup explosion).
+_CONTAINER_NAMES = {"div", "section", "article", "li", "header", "main"}
+
 
 def _owned_blocks(heading: Tag) -> list[Tag]:
+    """Return block elements owned by this heading (for text extraction).
+    Only includes _BLOCK_NAMES so text stays clean and bounded.
+    """
     level = int(heading.name[1])
     blocks: list[Tag] = []
     seen_ids: set[int] = set()
@@ -693,6 +717,108 @@ def _owned_blocks(heading: Tag) -> list[Tag]:
     except Exception:
         pass
     return blocks
+
+
+def _extract_videos(tag: Tag, base_url: str) -> list[dict]:
+    """Detect video content: native <video>, YouTube/Vimeo/Dailymotion iframes.
+
+    Returns a list of dicts: {src, type, title}
+    type is one of: 'video/mp4', 'youtube', 'vimeo', 'dailymotion', 'embed'
+    Never raises — errors are silently skipped per item.
+    """
+    videos: list[dict] = []
+    seen: set[str] = set()
+
+    # ── Native <video> elements ───────────────────────────────────────────────
+    try:
+        for vid in tag.find_all("video", limit=20):
+            # Direct src attribute
+            src = _safe_get(vid, "src") or _safe_get(vid, "data-src") or ""
+            if not src:
+                # <source> child elements
+                source = vid.find("source")
+                if source:
+                    src = _safe_get(source, "src") or ""
+            if src:
+                abs_src = urljoin(base_url, src)
+                if abs_src not in seen:
+                    seen.add(abs_src)
+                    videos.append({
+                        "src": abs_src,
+                        "type": "video/mp4",
+                        "title": _safe_get(vid, "title") or "",
+                    })
+    except Exception:
+        pass
+
+    # ── Iframe embeds (YouTube, Vimeo, Dailymotion) ───────────────────────────
+    _EMBED_PATTERNS = (
+        ("youtube",     ("youtube.com/embed/", "youtube-nocookie.com/embed/", "youtu.be/")),
+        ("vimeo",       ("player.vimeo.com/video/",)),
+        ("dailymotion", ("dailymotion.com/embed/",)),
+    )
+    try:
+        for iframe in tag.find_all("iframe", limit=30):
+            src = _safe_get(iframe, "src") or _safe_get(iframe, "data-src") or ""
+            if not src:
+                continue
+            abs_src = urljoin(base_url, src) if src.startswith("/") else src
+            title = _safe_get(iframe, "title") or ""
+            matched = False
+            for vtype, patterns in _EMBED_PATTERNS:
+                if any(p in abs_src for p in patterns):
+                    if abs_src not in seen:
+                        seen.add(abs_src)
+                        videos.append({"src": abs_src, "type": vtype, "title": title})
+                    matched = True
+                    break
+            # Generic embed fallback: iframe with video-like URL
+            if not matched and any(kw in abs_src.lower() for kw in ("video", "embed", "player", "media")):
+                if abs_src.startswith(("http://", "https://")) and abs_src not in seen:
+                    seen.add(abs_src)
+                    videos.append({"src": abs_src, "type": "embed", "title": title})
+    except Exception:
+        pass
+
+    return videos
+
+
+def _sibling_resources(heading: Tag, base_url: str) -> dict[str, list]:
+    """C3: Collect resources from DOM siblings up to the next same-or-higher heading.
+
+    Used only when the owned-block fragment yields 0 links AND 0 images.
+    Includes container elements (div, section, article) so React/Shopify
+    product cards, image galleries and navigation groups are captured.
+    Does NOT affect text extraction — only links and images.
+    """
+    level = int(heading.name[1])
+    collected: list[Tag] = []
+    seen_ids: set[int] = set()
+    try:
+        for element in heading.next_siblings:
+            if not isinstance(element, Tag):
+                continue
+            name = element.name or ""
+            if re.fullmatch(r"h[1-6]", name):
+                if int(name[1]) <= level:
+                    break  # stop at next same-or-higher heading
+            if name in _BLOCK_NAMES or name in _CONTAINER_NAMES:
+                eid = id(element)
+                if eid not in seen_ids:
+                    seen_ids.add(eid)
+                    collected.append(element)
+    except Exception:
+        pass
+
+    if not collected:
+        return {"links": [], "images": [], "lists": [], "tables": []}
+
+    try:
+        frag_html = "".join(str(el) for el in collected)
+        frag_soup = BeautifulSoup(frag_html, "lxml")
+        return _resources(frag_soup, base_url)
+    except Exception:
+        return {"links": [], "images": [], "lists": [], "tables": []}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -753,14 +879,27 @@ def _build_sections(root: Tag, base_url: str) -> list[dict]:
 
             raw_html = (str(heading) + fragment_html)[:RAW_HTML_TRUNCATE]
 
-            # Fix 1: extract resources from heading's parent container, not just
-            # owned blocks. This captures links/images in surrounding wrappers
-            # (e.g. Foxtale SSR pages where links live in the section container).
-            section_root = heading.parent if heading.parent else heading
-            try:
-                section_resources = _resources(section_root, base_url)
-            except Exception:
-                section_resources = _resources(fragment, base_url)
+            # Primary resource pass: run on the owned-block fragment.
+            # For HTML sites (Wikipedia, MDN) this is sufficient — <p> blocks
+            # contain inline <a> and <img> tags.
+            section_resources = _resources(fragment, base_url)
+
+            # C3: Sibling fallback — for React/Shopify/Next.js sites where
+            # links and images live in <div> containers next to the heading,
+            # not inside block-level elements. Activates only when the fragment
+            # produces nothing, so it never overwrites richer static results.
+            if not section_resources["links"] and not section_resources["images"]:
+                try:
+                    sib_res = _sibling_resources(heading, base_url)
+                    if sib_res["links"] or sib_res["images"]:
+                        section_resources["links"] = sib_res["links"]
+                        section_resources["images"] = sib_res["images"]
+                        if not section_resources["lists"]:
+                            section_resources["lists"] = sib_res["lists"]
+                        if not section_resources["tables"]:
+                            section_resources["tables"] = sib_res["tables"]
+                except Exception:
+                    pass
 
             sections.append({
                 "id": section_id,
@@ -1198,11 +1337,47 @@ def extract_page(source: PageSource, strategy: str = "static") -> dict:
     except Exception:
         deduped_count = 0
 
-    # ── Step 10: Merge resources ──────────────────────────────────────────────
+    # ── Step 10: Merge resources from sections ────────────────────────────────
     try:
         resources = _merge_resources(sections)
     except Exception:
         resources = {"links": [], "images": [], "lists": [], "tables": [], "videos": [], "audio": [], "documents": []}
+
+    # ── Step 10b: Global root scan (C2) ───────────────────────────────────────
+    # Catches every link and image in <div>/<section>/<article> containers that
+    # _owned_blocks() and _sibling_resources() couldn't attribute to a section.
+    # This is the universal safety net for React, Shopify, Next.js, and any
+    # component-based site where DOM structure doesn't match heading ownership.
+    # Purely additive — deduplicates against what sections already collected.
+    try:
+        root_res = _resources(root, source.final_url)
+        seen_global: set[str] = set()
+        for key in ("links", "images"):
+            for item in resources.get(key, []):
+                try:
+                    seen_global.add(json.dumps(item, sort_keys=True))
+                except Exception:
+                    pass
+        for key in ("links", "images"):
+            for item in root_res.get(key, []):
+                try:
+                    k = json.dumps(item, sort_keys=True)
+                    if k not in seen_global:
+                        seen_global.add(k)
+                        resources[key].append(item)
+                except Exception:
+                    pass
+    except Exception:
+        pass  # never block extraction
+
+    # ── Step 10c: Video extraction ────────────────────────────────────────────
+    # Scans the full soup (not just root) to catch videos in any container.
+    # Also checks the whole document body for iframes outside the content root.
+    try:
+        video_scan_root = soup.body if soup.body else root
+        resources["videos"] = _extract_videos(video_scan_root, source.final_url)
+    except Exception:
+        resources["videos"] = []
 
     total_text_chars = sum(len(s.get("content", {}).get("text", "")) for s in sections)
 
@@ -1220,14 +1395,15 @@ def extract_page(source: PageSource, strategy: str = "static") -> dict:
             "introduction": "",
             "sections": sections,
         },
-        "resources": {**resources, "videos": [], "audio": [], "documents": []},
+        "resources": resources,
         "statistics": {
             "strategy": strategy,
             "sections": len(sections),
             "sectionsDeduped": deduped_count,
             "textCharacters": total_text_chars,
-            "linksFound": len(resources.get("links", [])),
-            "imagesFound": len(resources.get("images", [])),
+            "linksFound":        len(resources.get("links", [])),
+            "imagesFound":       len(resources.get("images", [])),
+            "videosFound":       len(resources.get("videos", [])),
             "fetchDurationMs": round(source.fetch_duration_ms, 1),
             "renderDurationMs": 0.0,
             "totalDurationMs": 0.0,

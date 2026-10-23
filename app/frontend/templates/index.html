@@ -356,7 +356,71 @@ tr:hover td { background: rgba(79,142,247,0.04); }
   border-radius: 4px; padding: 2px 6px; color: var(--muted);
 }
 
+/* ── Video cards ─────────────────────────────────────────────────────────── */
+.videos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+.video-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: border-color var(--transition), transform var(--transition);
+}
+.video-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.video-thumb {
+  width: 100%; aspect-ratio: 16/9;
+  background: #0d1117;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden; position: relative;
+}
+.video-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.video-thumb .play-icon {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.35);
+  font-size: 36px; opacity: 0;
+  transition: opacity var(--transition);
+}
+.video-card:hover .play-icon { opacity: 1; }
+.video-placeholder {
+  width: 100%; aspect-ratio: 16/9;
+  background: linear-gradient(135deg, #0d1117 0%, #131929 100%);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 40px; color: var(--muted);
+}
+.video-info {
+  padding: 10px 12px 12px;
+}
+.video-type-badge {
+  display: inline-block;
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.08em; padding: 2px 7px; border-radius: 4px;
+  margin-bottom: 6px;
+}
+.vtype-youtube    { background: rgba(255,0,0,0.15);    color: #ff4444; border: 1px solid rgba(255,0,0,0.3); }
+.vtype-vimeo      { background: rgba(26,183,234,0.15); color: #1ab7ea; border: 1px solid rgba(26,183,234,0.3); }
+.vtype-dailymotion{ background: rgba(0,98,255,0.15);   color: #0062ff; border: 1px solid rgba(0,98,255,0.3); }
+.vtype-mp4,
+.vtype-video\/mp4 { background: rgba(34,197,94,0.15);  color: #22c55e; border: 1px solid rgba(34,197,94,0.3); }
+.vtype-embed      { background: rgba(124,58,237,0.15); color: #7c3aed; border: 1px solid rgba(124,58,237,0.3); }
+.video-title {
+  font-size: 12px; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-bottom: 4px;
+}
+.video-link {
+  font-size: 11px; color: var(--accent);
+  font-family: 'JetBrains Mono', monospace;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: block; text-decoration: none;
+}
+.video-link:hover { text-decoration: underline; }
+
 /* ── Interactions tab ────────────────────────────────────────────────────── */
+
 .interaction-info { display: flex; flex-direction: column; gap: 16px; }
 .interaction-group h4 {
   font-size: 11px; font-weight: 700; text-transform: uppercase;
@@ -452,6 +516,10 @@ tr:hover td { background: rgba(79,142,247,0.04); }
       <div class="stat-label">Images</div>
     </div>
     <div class="stat-card">
+      <div class="stat-value" id="statVideos">—</div>
+      <div class="stat-label">Videos</div>
+    </div>
+    <div class="stat-card">
       <div class="stat-value" id="statTime">—</div>
       <div class="stat-label">Total Time</div>
     </div>
@@ -473,6 +541,7 @@ tr:hover td { background: rgba(79,142,247,0.04); }
       <button class="tab-btn active" id="tab-content"   onclick="switchTab('content')"   role="tab">📄 Content</button>
       <button class="tab-btn"        id="tab-links"     onclick="switchTab('links')"     role="tab">🔗 Links</button>
       <button class="tab-btn"        id="tab-images"    onclick="switchTab('images')"    role="tab">🖼 Images</button>
+      <button class="tab-btn"        id="tab-videos"    onclick="switchTab('videos')"    role="tab">🎬 Videos</button>
       <button class="tab-btn"        id="tab-tables"    onclick="switchTab('tables')"    role="tab">📊 Tables</button>
       <button class="tab-btn"        id="tab-components" onclick="switchTab('components')" role="tab">🧩 Components</button>
       <button class="tab-btn"        id="tab-interactions" onclick="switchTab('interactions')" role="tab">🖱 Interactions</button>
@@ -492,6 +561,11 @@ tr:hover td { background: rgba(79,142,247,0.04); }
     <!-- Images tab -->
     <div class="tab-pane" id="pane-images">
       <div class="images-grid" id="imagesGrid"></div>
+    </div>
+
+    <!-- Videos tab -->
+    <div class="tab-pane" id="pane-videos">
+      <div class="videos-grid" id="videosGrid"></div>
     </div>
 
     <!-- Tables tab -->
@@ -573,6 +647,7 @@ async function runScrape() {
     renderContent(r);
     renderLinks(r);
     renderImages(r);
+    renderVideos(r);
     renderTables(r);
     renderComponents(r);
     renderInteractions(r);
@@ -609,8 +684,9 @@ function renderStats(r) {
   document.getElementById('statStrategy').innerHTML =
     `<span class="strategy-badge ${strategyClass}">${strategy.toUpperCase()}</span>`;
   document.getElementById('statSections').textContent = (r.sections || []).length;
-  document.getElementById('statLinks').textContent = stats.linksFound ?? 0;
+  document.getElementById('statLinks').textContent  = stats.linksFound  ?? 0;
   document.getElementById('statImages').textContent = stats.imagesFound ?? 0;
+  document.getElementById('statVideos').textContent = stats.videosFound ?? 0;
   document.getElementById('statTime').textContent =
     stats.totalDurationMs ? `${Math.round(stats.totalDurationMs)}ms` : '—';
   document.getElementById('statsBar').classList.add('visible');
@@ -739,6 +815,45 @@ function renderImages(r) {
         <img src="${esc(img.src)}" alt="${esc(img.alt)}" loading="lazy"
           onerror="this.style.display='none'">
         <div class="image-alt">${esc(img.alt) || '(no alt)'}</div>
+      </div>`;
+  });
+}
+
+// ── Videos ────────────────────────────────────────────────────────────────────
+function renderVideos(r) {
+  const resources = r.resources || {};
+  const videos = resources.videos || [];
+  const grid = document.getElementById('videosGrid');
+  grid.innerHTML = '';
+
+  if (!videos.length) {
+    grid.innerHTML = '<div class="empty-state"><div class="icon">🎬</div>No videos found</div>';
+    return;
+  }
+
+  videos.forEach(vid => {
+    const typeClass = 'vtype-' + (vid.type || 'embed').replace('/', '-');
+    const ytId = vid.type === 'youtube'
+      ? (vid.src.match(/\/embed\/([^?]+)/) || [])[1] || ''
+      : '';
+    const thumbHtml = ytId
+      ? `<div class="video-thumb">
+           <img src="https://img.youtube.com/vi/${esc(ytId)}/mqdefault.jpg" alt="thumbnail" loading="lazy">
+           <div class="play-icon">▶</div>
+         </div>`
+      : `<div class="video-placeholder">🎬</div>`;
+
+    grid.innerHTML += `
+      <div class="video-card">
+        <a href="${esc(vid.src)}" target="_blank" rel="noopener" style="text-decoration:none">
+          ${thumbHtml}
+        </a>
+        <div class="video-info">
+          <span class="video-type-badge ${typeClass}">${esc(vid.type || 'embed')}</span>
+          ${vid.title ? `<div class="video-title" title="${esc(vid.title)}">${esc(vid.title)}</div>` : ''}
+          <a class="video-link" href="${esc(vid.src)}" target="_blank" rel="noopener"
+             title="${esc(vid.src)}">${esc(vid.src)}</a>
+        </div>
       </div>`;
   });
 }
