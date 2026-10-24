@@ -91,6 +91,17 @@ def _failure(url: str, message: str, phase: str) -> dict:
                 "sectionsDeduped": 0, "linksFound": 0, "imagesFound": 0,
             },
             "errors": [{"message": message, "phase": phase, "recoverable": False}],
+            "attempt": {
+                "outcome": "failed" if phase != "validation" else "unsupported",
+                "requestSucceeded": False,
+                "httpStatus": None,
+                "browserAttempted": False,
+                "browserLaunched": False,
+                "navigationSucceeded": False,
+                "extractionSucceeded": False,
+                "challengeDetected": False,
+                "partial": False,
+            },
         }
     }
 
@@ -318,6 +329,31 @@ def _compose_response(
                 "recoverable": True,
             })
 
+    usable = bool(sections) or any(result.get("resources", {}).get(name) for name in ("links", "images", "tables", "videos", "audio", "documents", "records"))
+    if browser_res and browser_res.challenge_detected:
+        outcome = "partial" if usable else "challenge_detected"
+    elif browser_res and browser_res.blocked:
+        outcome = "partial" if usable else "access_denied"
+    elif usable and errors:
+        outcome = "partial"
+    elif usable:
+        outcome = "success"
+    elif errors:
+        outcome = "failed"
+    else:
+        outcome = "empty"
+    attempt = {
+        "outcome": outcome,
+        "requestSucceeded": result.get("page", {}).get("httpStatus") is not None,
+        "httpStatus": result.get("page", {}).get("httpStatus"),
+        "browserAttempted": bool(browser_res and browser_res.browser_attempted),
+        "browserLaunched": bool(browser_res and browser_res.browser_attempted and not browser_res.browser_error),
+        "navigationSucceeded": bool(browser_res and browser_res.navigation_status and browser_res.navigation_status < 400),
+        "extractionSucceeded": usable,
+        "challengeDetected": bool(browser_res and browser_res.challenge_detected),
+        "partial": outcome == "partial",
+    }
+
     return {
         "result": {
             "url": url,
@@ -331,6 +367,7 @@ def _compose_response(
             "resources": result.get("resources", {}),
             "interactions": interactions,
             "stats": stats,
+            "attempt": attempt,
             "errors": errors,
         }
     }

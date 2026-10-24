@@ -141,6 +141,11 @@ async def fetch_page(url: str) -> PageSource:
         ) as client:
             resp = await client.get(current_url)
             final_url = str(resp.url)
+            try:
+                normalize_url(final_url)
+            except URLPolicyError as exc:
+                ms = (time.perf_counter() - t0) * 1000
+                return PageSource(url, final_url, "", resp.status_code, "", f"Redirect blocked by URL policy: {exc}", ms)
             ct_header = resp.headers.get("content-type", "")
             content_type = ct_header.split(";", 1)[0].strip().lower()
 
@@ -170,6 +175,10 @@ async def fetch_page(url: str) -> PageSource:
         )
         ms = (time.perf_counter() - t0) * 1000
         if html_fb:
+            try:
+                normalize_url(final_url_fb)
+            except URLPolicyError as exc:
+                return PageSource(url, final_url_fb, ct_fb, httpx_status, "", f"Redirect blocked by URL policy: {exc}", ms)
             return PageSource(url, final_url_fb, ct_fb, 200, html_fb,
                               fetch_duration_ms=ms)
     except Exception:
@@ -783,6 +792,58 @@ def _extract_videos(tag: Tag, base_url: str) -> list[dict]:
     return videos
 
 
+def _extract_audio_and_documents(tag: Tag, base_url: str) -> tuple[list[dict], list[dict]]:
+    """Extract declared audio and document URLs without downloading them."""
+    audio: list[dict] = []
+    documents: list[dict] = []
+    seen: set[str] = set()
+    for node in tag.find_all(["audio", "source"]):
+        if node.name == "source" and node.find_parent("audio") is None:
+            continue
+        src = _safe_get(node, "src") or _safe_get(node, "data-src")
+        if src:
+            url = urljoin(base_url, src)
+            if url not in seen:
+                seen.add(url)
+                audio.append({"url": url, "sourceType": "native", "title": _safe_get(node, "title") or None})
+    document_extensions = (".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".odt", ".csv")
+    for anchor in tag.find_all("a", href=True):
+        href = urljoin(base_url, _safe_get(anchor, "href"))
+        path = href.split("?", 1)[0].lower()
+        if path.endswith(document_extensions) and href not in seen:
+            seen.add(href)
+            documents.append({"url": href, "text": _safe_text(anchor)[:200], "title": _safe_get(anchor, "title") or None})
+    return audio, documents
+
+
+def _extract_records(tag: Tag, base_url: str) -> list[dict]:
+    """Conservatively extract repeated sibling cards without site-specific selectors."""
+    records: list[dict] = []
+    for parent in tag.find_all(["main", "article", "section", "div", "ul", "ol"]):
+        children = [c for c in parent.find_all(recursive=False) if isinstance(c, Tag)]
+        if len(children) < 3:
+            continue
+        groups: dict[tuple, list[Tag]] = {}
+        for child in children:
+            signature = (child.name, bool(child.find("a", href=True)), bool(child.find("img")), bool(child.find(["h1", "h2", "h3", "h4"])))
+            groups.setdefault(signature, []).append(child)
+        for (_, has_link, _, _), cards in groups.items():
+            if not has_link or len(cards) < 3:
+                continue
+            for card in cards[:50]:
+                heading = card.find(["h1", "h2", "h3", "h4"])
+                link = card.find("a", href=True)
+                title = _safe_text(heading) if heading else _safe_text(link)
+                text = _safe_text(card)[:1000]
+                if not title or len(text) < 3:
+                    continue
+                image_urls = [urljoin(base_url, _safe_get(i, "src") or _safe_get(i, "data-src")) for i in card.find_all("img") if _safe_get(i, "src") or _safe_get(i, "data-src")]
+                url = urljoin(base_url, _safe_get(link, "href")) if link else None
+                records.append({"recordType": "unknown", "title": title[:300], "text": text, "url": url, "imageUrls": image_urls[:5], "sourceContext": parent.name, "confidence": 0.6})
+            return records
+    return records
+
+
 def _sibling_resources(heading: Tag, base_url: str) -> dict[str, list]:
     """C3: Collect resources from DOM siblings up to the next same-or-higher heading.
 
@@ -1137,8 +1198,13 @@ def analyze_static_quality(source: PageSource, result: dict) -> str:
     if has_root_app and p_count < 3 and script_count > 5:
         return JS_REQUIRED
 
-    # --- Soft JS signals (static got content, but JS adds real value) ---
-    # Check these against the raw HTML before static extraction results
+    # Static completeness is decided by extracted, usable content.  Lazy media,
+    # framework markers, tabs, and pagination are only reasons to consider a
+    # browser fallback when the extracted result is genuinely incomplete.
+    if sections and total_text >= MIN_TEXT_LENGTH_STATIC:
+        return STATIC_COMPLETE
+
+    # --- Soft signals (used only for an otherwise incomplete extraction) ---
 
     try:
         soup = BeautifulSoup(html, "lxml")
@@ -1188,7 +1254,8 @@ def analyze_static_quality(source: PageSource, result: dict) -> str:
             "nuxt" in html_lower and script_count > 8
         )
 
-        # Any soft signal -> STATIC_PARTIAL (run JS, merge results)
+        # A soft signal may justify a bounded render only after the quality
+        # check above has found static content insufficient.
         soft_signals = [has_lazy_images, has_pagination, has_tabs, has_load_more]
         if any(soft_signals):
             return STATIC_PARTIAL
@@ -1208,12 +1275,6 @@ def analyze_static_quality(source: PageSource, result: dict) -> str:
         return STATIC_EMPTY
 
     if total_text < MIN_TEXT_LENGTH_STATIC:
-        return STATIC_PARTIAL
-
-    # SSR text with no links and no images
-    total_links = sum(len(s.get("content", {}).get("links", [])) for s in sections)
-    total_images = sum(len(s.get("content", {}).get("images", [])) for s in sections)
-    if total_text > 2000 and total_links == 0 and total_images == 0:
         return STATIC_PARTIAL
 
     return STATIC_COMPLETE
@@ -1263,6 +1324,15 @@ def extract_page(source: PageSource, strategy: str = "static") -> dict:
         structured = _structured_data(soup)
     except Exception:
         structured = []
+
+    # Capture page-wide resources before chrome removal. Tables and declared
+    # media may legitimately sit outside the selected article container.
+    try:
+        pagewide_resources = _resources(soup, source.final_url)
+        pagewide_audio, pagewide_documents = _extract_audio_and_documents(soup, source.final_url)
+    except Exception:
+        pagewide_resources = {"links": [], "images": [], "lists": [], "tables": []}
+        pagewide_audio, pagewide_documents = [], []
 
     # ── Step 3: Extract and remove page chrome ─────────────────────────────────
     try:
@@ -1352,13 +1422,13 @@ def extract_page(source: PageSource, strategy: str = "static") -> dict:
     try:
         root_res = _resources(root, source.final_url)
         seen_global: set[str] = set()
-        for key in ("links", "images"):
+        for key in ("links", "images", "lists", "tables"):
             for item in resources.get(key, []):
                 try:
                     seen_global.add(json.dumps(item, sort_keys=True))
                 except Exception:
                     pass
-        for key in ("links", "images"):
+        for key in ("links", "images", "lists", "tables"):
             for item in root_res.get(key, []):
                 try:
                     k = json.dumps(item, sort_keys=True)
@@ -1370,14 +1440,31 @@ def extract_page(source: PageSource, strategy: str = "static") -> dict:
     except Exception:
         pass  # never block extraction
 
+    # Merge the pre-clean document-wide pass conservatively. This avoids
+    # losing tables/resources that were outside the chosen main-content root.
+    for key in ("links", "images", "lists", "tables"):
+        seen = {json.dumps(item, sort_keys=True) for item in resources.get(key, [])}
+        for item in pagewide_resources.get(key, []):
+            fingerprint = json.dumps(item, sort_keys=True)
+            if fingerprint not in seen:
+                resources[key].append(item)
+                seen.add(fingerprint)
+
     # ── Step 10c: Video extraction ────────────────────────────────────────────
     # Scans the full soup (not just root) to catch videos in any container.
     # Also checks the whole document body for iframes outside the content root.
     try:
         video_scan_root = soup.body if soup.body else root
         resources["videos"] = _extract_videos(video_scan_root, source.final_url)
+        resources["audio"], resources["documents"] = _extract_audio_and_documents(video_scan_root, source.final_url)
+        resources["audio"] = list({item["url"]: item for item in resources["audio"] + pagewide_audio}.values())
+        resources["documents"] = list({item["url"]: item for item in resources["documents"] + pagewide_documents}.values())
+        resources["records"] = _extract_records(root, source.final_url)
     except Exception:
         resources["videos"] = []
+        resources["audio"] = []
+        resources["documents"] = []
+        resources["records"] = []
 
     total_text_chars = sum(len(s.get("content", {}).get("text", "")) for s in sections)
 
@@ -1385,6 +1472,7 @@ def extract_page(source: PageSource, strategy: str = "static") -> dict:
         "page": {
             "finalUrl": source.final_url,
             "contentType": source.content_type or "text/html",
+            "httpStatus": source.status_code,
             "title": meta.get("title", ""),
             "language": meta.get("language", "en"),
         },
@@ -1404,6 +1492,9 @@ def extract_page(source: PageSource, strategy: str = "static") -> dict:
             "linksFound":        len(resources.get("links", [])),
             "imagesFound":       len(resources.get("images", [])),
             "videosFound":       len(resources.get("videos", [])),
+            "audioFound":        len(resources.get("audio", [])),
+            "documentsFound":    len(resources.get("documents", [])),
+            "recordsFound":      len(resources.get("records", [])),
             "fetchDurationMs": round(source.fetch_duration_ms, 1),
             "renderDurationMs": 0.0,
             "totalDurationMs": 0.0,
@@ -1418,6 +1509,7 @@ def _empty_page(source: PageSource, strategy: str, text: str, errors: list | Non
         "page": {
             "finalUrl": source.final_url,
             "contentType": source.content_type or "",
+            "httpStatus": source.status_code,
             "title": "",
             "language": "en",
         },

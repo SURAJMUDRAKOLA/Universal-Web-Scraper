@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>Lazy Images Test Page</title></head>
+<body>
+<h1>Product Gallery</h1>
+<p>Images below use lazy-loading patterns common on e-commerce sites.</p>
+
+<!-- Native src (should always be found) -->
+<img src="https://picsum.photos/id/10/200/150" alt="Forest photo">
+
+<!-- data-src pattern (jQuery lazy / WooCommerce) -->
+<img data-src="https://picsum.photos/id/20/200/150" alt="Mountain photo" class="lazyload">
+
+<!-- srcset-only (no src attribute) -->
+<img srcset="https://picsum.photos/id/30/200/150 1x, https://picsum.photos/id/30/400/300 2x"
+     alt="City photo">
+
+<!-- data-original (another lazy pattern) -->
+<img data-original="https://picsum.photos/id/40/200/150" alt="Ocean photo">
+
+<!-- data-image (Shopify-style) -->
+<img data-image="https://picsum.photos/id/50/200/150" alt="Desert photo">
+
+<h2>More Content</h2>
+<p>This section has links.</p>
+<a href="https://example.com/page1">Link One</a>
+<a href="https://example.com/page2">Link Two</a>
+</body>
+</html>

@@ -10,16 +10,15 @@ venv/
 # Local development
 .vscode/
 
-# Tests and local test output
-tests/
-test_*.py
-*_test.py
-
 # Project working notes and prompt artifacts
 *_notes.md
-*_prompt*.md
-*_prompt*.html
-*Blueprint*.md
+# Keep the Golden Blueprint and deterministic tests under version control.
+universal_web_scraper_master_prompt_FINAL.html
+Universal_Web_Scraper_V3_Complete_Implementation_Blueprint_and_Master_Prompt.md
+
+# Ad-hoc live-site checks (deterministic tests belong in tests/)
+test_local.py
+test_suite.py
 
 # Scraped/exported data
 *.json

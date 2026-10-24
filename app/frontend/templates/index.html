@@ -793,7 +793,7 @@ function renderLinks(r) {
     list.innerHTML += `
       <div class="link-row">
         <span class="link-text">${esc(lk.text || '(no text)')}</span>
-        <a class="link-href" href="${esc(lk.href)}" target="_blank" rel="noopener">${esc(lk.href)}</a>
+        <a class="link-href" href="${esc(safeUrl(lk.href))}" target="_blank" rel="noopener noreferrer">${esc(lk.href)}</a>
       </div>`;
   });
 }
@@ -812,7 +812,7 @@ function renderImages(r) {
   images.forEach(img => {
     grid.innerHTML += `
       <div class="image-card">
-        <img src="${esc(img.src)}" alt="${esc(img.alt)}" loading="lazy"
+        <img src="${esc(safeUrl(img.src))}" alt="${esc(img.alt)}" loading="lazy"
           onerror="this.style.display='none'">
         <div class="image-alt">${esc(img.alt) || '(no alt)'}</div>
       </div>`;
@@ -845,13 +845,13 @@ function renderVideos(r) {
 
     grid.innerHTML += `
       <div class="video-card">
-        <a href="${esc(vid.src)}" target="_blank" rel="noopener" style="text-decoration:none">
+        <a href="${esc(safeUrl(vid.src))}" target="_blank" rel="noopener noreferrer" style="text-decoration:none">
           ${thumbHtml}
         </a>
         <div class="video-info">
           <span class="video-type-badge ${typeClass}">${esc(vid.type || 'embed')}</span>
           ${vid.title ? `<div class="video-title" title="${esc(vid.title)}">${esc(vid.title)}</div>` : ''}
-          <a class="video-link" href="${esc(vid.src)}" target="_blank" rel="noopener"
+          <a class="video-link" href="${esc(safeUrl(vid.src))}" target="_blank" rel="noopener noreferrer"
              title="${esc(vid.src)}">${esc(vid.src)}</a>
         </div>
       </div>`;
@@ -994,6 +994,15 @@ function esc(s) {
   return String(s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;')
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function safeUrl(value) {
+  try {
+    const url = new URL(String(value || ''), window.location.origin);
+    return ['http:', 'https:'].includes(url.protocol) ? url.href : '#';
+  } catch (_) {
+    return '#';
+  }
 }
 
 // ── Enter key support ─────────────────────────────────────────────────────────

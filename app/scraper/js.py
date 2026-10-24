@@ -29,7 +29,7 @@ from app.scraper.config import (
     MAX_SCROLLS,
     MIN_PAGES,
 )
-from app.scraper.urls import normalize_for_dedup
+from app.scraper.urls import URLPolicyError, normalize_for_dedup, normalize_url
 
 
 # ── Structured result (F1: replaces fragile tuple) ────────────────────────────
@@ -344,8 +344,6 @@ async def _js_scrape_impl(url: str) -> BrowserResult:
                 locale="en-US",
                 timezone_id="America/New_York",
             )
-            # Apply stealth script BEFORE any page navigation
-            await context.add_init_script(_STEALTH_SCRIPT)
             page = await context.new_page()
 
             # ── Navigate ──────────────────────────────────────────────────────
@@ -355,6 +353,12 @@ async def _js_scrape_impl(url: str) -> BrowserResult:
                 )
                 if response:
                     result.navigation_status = response.status
+                try:
+                    normalize_url(page.url)
+                except URLPolicyError as exc:
+                    result.browser_error = f"Browser navigation blocked by URL policy: {exc}"
+                    result.errors.append({"message": result.browser_error, "phase": "navigation", "recoverable": False})
+                    return result
                 # Try networkidle for richer content, fall back silently on timeout
                 try:
                     await page.wait_for_load_state("networkidle", timeout=1_500)

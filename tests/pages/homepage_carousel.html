@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>Shop Homepage — Carousel Test</title></head>
+<body>
+<nav><a href="/products">Products</a> <a href="/about">About</a></nav>
+<main>
+  <h1>Welcome to Our Shop</h1>
+  <p>Find great deals on thousands of products.</p>
+
+  <!-- Product carousel — has "Next" button that should NOT trigger pagination -->
+  <section class="carousel" aria-label="Featured products">
+    <h2>Featured Products</h2>
+    <div class="carousel-track">
+      <div class="carousel-item"><h3>Widget A</h3><img src="/img/a.jpg" alt="Widget A"><p>Best seller</p></div>
+      <div class="carousel-item"><h3>Widget B</h3><img src="/img/b.jpg" alt="Widget B"><p>New arrival</p></div>
+    </div>
+    <!-- This Next button must NOT be treated as page pagination -->
+    <a href="/search?q=widgets&featured=1" class="carousel-next" aria-label="Next slide">Next</a>
+  </section>
+
+  <!-- Another carousel -->
+  <section class="carousel">
+    <h2>Deals of the Day</h2>
+    <a href="/search?deals=today" class="carousel-next">Next</a>
+  </section>
+</main>
+</body>
+</html>

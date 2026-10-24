@@ -29,6 +29,6 @@ MAX_LISTS                = 20
 MAX_TABLES               = 20
 
 # ── Content quality thresholds ────────────────────────────────────────────────
-MIN_TEXT_LENGTH_STATIC   = 500     # chars — below this, consider JS fallback
 MIN_PARAGRAPH_COUNT      = 2
+MIN_TEXT_LENGTH_STATIC   = 300     # calibrated against complete local article fixtures
 MIN_TEXT_DENSITY         = 0.05

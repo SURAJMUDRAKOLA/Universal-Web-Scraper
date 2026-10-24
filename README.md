@@ -19,6 +19,21 @@ The system extracts structured, section-aware data from both **static** and **Ja
 
 ---
 
+## Outcome and safety behavior
+
+The scraper is static-first. It uses a bounded browser fallback only when the
+extracted static result is incomplete; lazy images, pagination links, and
+framework markers alone do not force rendering. Every response includes an
+`attempt` object with request, browser-navigation, extraction, and challenge
+state. It does not bypass authentication, CAPTCHAs, access controls, or
+anti-bot challenges.
+
+Run deterministic regression tests with:
+
+```bash
+python -m unittest discover -s tests -p "test_*.py" -v
+```
+
 ## Tech Stack
 
 - **Language**: Python 3.10+
