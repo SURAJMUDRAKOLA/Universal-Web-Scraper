@@ -162,6 +162,4 @@ The scraper does not bypass authentication, CAPTCHAs, or access controls. Always
 
 **Suraj Mudrakola**
 
-GitHub: [@SURAJMUDRAKOLA](https://github.com/SURAJMUDRAKOLA)
-
-**Project Repository:** [Universal Web Scraper](https://github.com/SURAJMUDRAKOLA/Universal-Web-Scraper)
+**LINKEDIN:** [SURAJMUDRAKOLA](www.linkedin.com/in/surajmudrakola)
