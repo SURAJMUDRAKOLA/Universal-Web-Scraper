@@ -1,267 +1,167 @@
-# Universal Website Scraper (MVP) + JSON Viewer
+# Universal Web Scraper
 
-A full-stack universal website scraper built for the **Lyftr AI Full-Stack Assignment**.
-The system extracts structured, section-aware data from both **static** and **JavaScript-rendered** websites and provides a minimal frontend to view and download the scraped JSON.
+A Python-based web scraping application that extracts structured data from static and JavaScript-rendered websites using **FastAPI, BeautifulSoup, httpx, and Playwright**.
 
----
+The project follows a **static-first scraping strategy**, using browser automation when static extraction is insufficient. Extracted content is organized into structured JSON that can be inspected through a web interface or consumed through a REST API.
 
-## Features
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-REST%20API-009688?logo=fastapi)](https://fastapi.tiangolo.com/)
+[![Playwright](https://img.shields.io/badge/Playwright-Browser%20Automation-2EAD33?logo=playwright)](https://playwright.dev/python/)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-- ✅ Static HTML scraping
-- ✅ JavaScript-rendered page scraping (Playwright)
-- ✅ Section-aware content extraction
-- ✅ Click flows (tabs, “Load more / Show more”)
-- ✅ Pagination and infinite scroll (depth ≥ 3)
-- ✅ Noise filtering (cookie banners, modals, overlays)
-- ✅ Interaction tracking (clicks, scrolls, visited pages)
-- ✅ JSON API + Web UI viewer
-- ✅ Download scraped JSON
+**Tech Stack:** Python · FastAPI · Uvicorn · httpx · BeautifulSoup4 · lxml · Playwright · Chromium · Pydantic · Jinja2 · HTML · CSS · Vanilla JavaScript · unittest · GitHub Actions
 
----
+## ✨ Key Features
 
-## Outcome and safety behavior
+- **Static-First Extraction:** Fetches and parses HTML using `httpx`, BeautifulSoup, and `lxml` before considering browser rendering.
+- **JavaScript Rendering:** Uses Playwright and Chromium to extract content from pages that require JavaScript execution.
+- **Structured Data Extraction:** Collects page metadata, headings, content sections, links, images, lists, tables, media resources, and supported page components.
+- **Browser Interactions:** Attempts supported tab clicks, load-more actions, pagination, and infinite scrolling within configured limits.
+- **Data Merging & Deduplication:** Combines static and browser-derived results while filtering duplicate sections and resources.
+- **REST API:** Exposes scraping and health-check endpoints through FastAPI.
+- **Diagnostics:** Reports extraction strategy, timing statistics, interaction activity, errors, and partial-result information.
+- **URL Security:** Validates URLs and restricts disallowed local or private network destinations.
+- **JSON Viewer:** Provides a browser interface to submit URLs, inspect extracted results, and download JSON.
+- **Automated Testing:** Includes Python regression tests and a GitHub Actions workflow.
 
-The scraper is static-first. It uses a bounded browser fallback only when the
-extracted static result is incomplete; lazy images, pagination links, and
-framework markers alone do not force rendering. Every response includes an
-`attempt` object with request, browser-navigation, extraction, and challenge
-state. It does not bypass authentication, CAPTCHAs, access controls, or
-anti-bot challenges.
+## ⚙️ How It Works
 
-Run deterministic regression tests with:
+```mermaid
+flowchart TD
+    A[Submit URL] --> B[URL Validation]
+    B --> C[Static Fetch: httpx]
+    C --> D[Parse HTML: BeautifulSoup + lxml]
+    D --> E{Extraction Sufficient?}
+    E -->|Yes| G[Structure JSON]
+    E -->|No| F[Playwright + Chromium]
+    F --> H[Merge and Deduplicate]
+    H --> G
+    G --> I[API Response / Web Viewer]
+```
+
+1. Validate and normalize the submitted URL.
+2. Fetch and parse the page using the static extraction pipeline.
+3. Evaluate extraction quality and use Playwright when necessary.
+4. Merge and deduplicate extracted content.
+5. Return structured JSON with results and diagnostics.
+
+## 🛠️ Getting Started
+
+### Prerequisites
+
+- Python 3.10+
+- Git
+- Internet connection
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/SURAJMUDRAKOLA/Universal-Web-Scraper.git
+cd Universal-Web-Scraper
+```
+
+### 2. Create a Virtual Environment
+
+**Windows PowerShell**
+
+```powershell
+python -m venv venv
+venv\Scripts\Activate.ps1
+```
+
+**Linux / macOS**
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+### 3. Install Dependencies
+
+```bash
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+playwright install chromium
+```
+
+### 4. Start the Server
+
+```bash
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+Open the application at **http://127.0.0.1:8000**.
+
+Interactive API documentation is available at **http://127.0.0.1:8000/docs**.
+
+## 🔌 API Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/healthz` | Checks application health |
+| `POST` | `/scrape` | Scrapes a URL and returns structured JSON |
+
+**Example request**
+
+```bash
+curl -X POST "http://127.0.0.1:8000/scrape" \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://example.com"}'
+```
+
+The scraping endpoint accepts a JSON body containing a URL. Successful responses include a top-level `result` object with extracted data, statistics, interaction details, and diagnostics. Exact fields and populated resources depend on the target website.
+
+## 🧪 Testing
+
+Run the regression test suite from the project root:
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -v
 ```
 
-## Tech Stack
+The repository also includes a GitHub Actions workflow for automated testing.
 
-- **Language**: Python 3.10+
-- **Backend**: FastAPI + Uvicorn
-- **Static Parsing**: httpx, BeautifulSoup4, lxml
-- **JS Rendering**: Playwright (Chromium)
-- **Frontend**: Jinja2 templates + Vanilla JavaScript
-- **Runtime**: uvicorn
+## 📁 Project Structure
 
----
-
-## Setup & Run Instructions
-
-### Requirements
-- Python 3.10 or higher
-- Internet connection (for Playwright browser download)
-
----
-
-### Run Using `run.sh` (Recommended)
-
-```bash
-chmod +x run.sh
-./run.sh
-```
-
-What `run.sh` does:
-- Creates and activates a virtual environment (on Unix-like shells)
-- Installs dependencies from `requirements.txt`
-- Installs Playwright browsers
-- Starts the server at `http://localhost:8000`
-
-> Note: On Windows `run.sh` requires Git Bash or WSL. See Manual Setup for native PowerShell steps.
-
----
-
-### Manual Setup (Native Windows PowerShell)
-
-Open PowerShell and run:
-
-```powershell
-python -m venv venv
-venv\Scripts\Activate.ps1
-pip install --upgrade pip
-pip install -r requirements.txt
-playwright install
-uvicorn app.main:app --host 0.0.0.0 --port 8000
-```
-
-Or run the server directly after activating the venv:
-
-```powershell
-venv\Scripts\Activate.ps1
-uvicorn app.main:app --reload --port 8000
-```
-
----
-
-## API Endpoints
-
-- `GET /healthz` — Health check
-
-Response:
-
-```json
-{ "status": "ok" }
-```
-
-- `POST /scrape` — Scrape a given URL and return structured JSON
-
-Request JSON example:
-
-```json
-{
-	"url": "https://example.com"
-}
-```
-
-Simplified response example:
-
-```json
-{
-	"result": {
-		"url": "https://example.com",
-		"scrapedAt": "2025-12-17T00:00:00Z",
-		"meta": {
-			"title": "Page Title",
-			"description": "",
-			"language": "en",
-			"canonical": "https://example.com"
-		},
-		"sections": [ /* section-aware content */ ],
-		"interactions": {
-			"clicks": [],
-			"scrolls": 3,
-			"pages": ["https://example.com"]
-		},
-		"errors": []
-	}
-}
-```
-
----
-
-## Frontend (JSON Viewer)
-
-Open http://localhost:8000 in your browser. The UI provides:
-
-- URL input field
-- “Scrape” button
-- Loading indicator
-- Expandable section viewer
-- View raw JSON per section
-- Download full JSON result
-
----
-
-## Primary Test URLs
-
-1. Wikipedia — Artificial Intelligence
-
-```
-https://en.wikipedia.org/wiki/Artificial_intelligence
-```
-
-- Mostly static content — validates static scraping and section extraction
-
-2. Hacker News
-
-```
-https://news.ycombinator.com/
-```
-
-- Pagination-based listing — tests pagination depth ≥ 3 and click tracking
-
-3. Infinite Scroll Demo
-
-```
-https://infinite-scroll.com/demo/full-page/
-```
-
-- Infinite scroll content loading — tests scroll depth ≥ 3 and scroll tracking
-
-Additional tested sites:
-
-- `https://vercel.com/` — JS-heavy marketing site
-- `https://dev.to/t/javascript` — “Load more” content
-- `https://nextjs.org/docs` — SPA documentation site
-
----
-
-## How the Scraper Works
-
-1. Static-First Strategy
-
-- Fetches HTML using `httpx`
-- Parses with `BeautifulSoup` + `lxml`
-- Extracts meta tags, semantic sections, headings, text, links, images, lists, tables
-
-2. JS Rendering Fallback
-
-Triggered when site is known JS-heavy or static output appears insufficient. Uses Playwright to:
-
-- Render JavaScript
-- Wait for network idle
-- Remove noise elements (cookie banners, modals)
-- Perform interactions (tabs, load-more, pagination, infinite scroll)
-
-3. Interactions Implemented
-
-- Tabs: `[role="tab"]` and common button selectors
-- Load More: buttons with text like “Load more” or “Show more”
-- Pagination: “Next” links
-- Infinite Scroll: scroll height & content growth detection
-
-All interactions are logged under `interactions: { clicks, scrolls, pages }` in the JSON.
-
----
-
-## Noise Filtering
-
-Automatically removes cookie banners, modals, popups, overlays and dialogs via DOM cleanup before extraction.
-
----
-
-## Known Limitations
-
-- Bot-protected sites may block scraping
-- Infinite scroll detection is heuristic-based
-- Very complex SPAs may yield partial sections
-- No retry or rate-limiting implemented
-- Same-origin navigation only
-- Long-loading sites may hit timeouts
-- `run.sh` requires Git Bash / WSL on Windows
-
----
-
-## Project Structure
-
-```
-universal-web-scraper/
+```text
+Universal-Web-Scraper/
 ├── app/
 │   ├── main.py
 │   ├── scraper/
 │   │   ├── static.py
-│   │   └── js.py
+│   │   ├── js.py
+│   │   └── urls.py
 │   └── frontend/
 │       └── templates/
 │           └── index.html
-├── run.sh
+├── tests/
+├── .github/workflows/
 ├── requirements.txt
-├── README.md
-├── design_notes.md
-└── capabilities.json
+├── run.sh
+└── README.md
 ```
 
----
+## ⚠️ Limitations
 
-## License
+- Bot-protected websites and access restrictions may prevent extraction.
+- Complex JavaScript applications may return partial results.
+- Pagination and infinite-scroll detection are heuristic-based.
+- Browser rendering may time out on slow websites.
+- Retry policies and rate limiting are not currently implemented.
 
-MIT License — Created exclusively for Lyftr AI – Full-Stack Assignment
+The scraper does not bypass authentication, CAPTCHAs, or access controls. Always follow applicable laws and target websites' usage policies.
 
----
+## 🚀 Future Improvements
 
-## Author
+- Refine the responsive frontend and dark/light theme.
+- Expand extraction and security regression tests.
+- Improve browser interaction detection.
+- Add configurable retries, rate limiting, and operational monitoring.
 
-Name: Suraj Mudrakola
+## 👨‍💻 Author
 
-Email: surajmudrakola808@gmail.com
+**Suraj Mudrakola**
 
----
+GitHub: [@SURAJMUDRAKOLA](https://github.com/SURAJMUDRAKOLA)
+
+**Project Repository:** [Universal Web Scraper](https://github.com/SURAJMUDRAKOLA/Universal-Web-Scraper)
