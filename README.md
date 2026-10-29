@@ -162,4 +162,4 @@ The scraper does not bypass authentication, CAPTCHAs, or access controls. Always
 
 **Suraj Mudrakola**
 
-**LINKEDIN:** [SURAJMUDRAKOLA](www.linkedin.com/in/surajmudrakola)
+**LINKEDIN:** [SURAJMUDRAKOLA](https://www.linkedin.com/in/surajmudrakola)
